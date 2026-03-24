@@ -338,8 +338,8 @@ pub fn confirm_capture(
     image_path: Option<String>,
     user_note: Option<String>,
 ) -> Result<CapturedContent, String> {
-    // Hide bubble window from Rust side (backup)
-    hide_bubble_window(&app);
+    // NOTE: Do NOT close the bubble window here.
+    // The frontend shows a green checkmark animation for 1.5s before closing itself.
 
     let event = CaptureEvent {
         content_type,
@@ -626,4 +626,16 @@ fn hide_bubble_window(app: &tauri::AppHandle) {
         let _ = win.close();
         log::info!("Bubble window closed/destroyed");
     }
+}
+
+/// Debug logging command — writes to a local file so we can see what happens at runtime.
+#[tauri::command]
+pub fn debug_log(message: String) {
+    let path = std::env::temp_dir().join("xiaoyun_debug.log");
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let now = chrono::Local::now().format("%H:%M:%S%.3f");
+        let _ = writeln!(f, "[{}] {}", now, message);
+    }
+    log::info!("[BUBBLE_DEBUG] {}", message);
 }

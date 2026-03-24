@@ -289,7 +289,7 @@ export const ContentCard = forwardRef<HTMLDivElement, ContentCardProps>(
                   className="cursor-pointer group/text"
                   onClick={() => setTextExpanded(true)}
                 >
-                  <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed line-clamp-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed line-clamp-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {content.raw_text}
                   </p>
                   <span className="text-[11px] text-gray-400 dark:text-slate-500
@@ -483,7 +483,7 @@ function FormattedText({ text }: { text: string }) {
   const paragraphs = text.split(/\n{2,}/);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
       {paragraphs.map((para, i) => {
         const trimmed = para.trim();
         if (!trimmed) return null;
@@ -775,7 +775,7 @@ function FullTextOverlay({
               )}
               {/* Text content — auto-formatted */}
               {displayText && (
-                <article className="selection:bg-indigo-500/20 dark:selection:bg-indigo-500/30">
+                <article className="selection:bg-indigo-500/20 dark:selection:bg-indigo-500/30 overflow-hidden">
                   {isImage && (
                     <div className="flex items-center gap-1.5 mb-3">
                       <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium px-2 py-0.5 rounded-md bg-amber-500/10">识别文字</span>
