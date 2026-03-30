@@ -128,3 +128,17 @@ pub struct CaptureEvent {
     pub raw_text: Option<String>,
     pub image_path: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttentionInsight {
+    pub id: i64,
+    pub analysis_json: Option<String>,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub analyzed_at: String,
+    pub window_start: String,
+    pub window_end: String,
+    pub content_count: i32,
+    pub model_used: String,
+    pub is_current: bool,
+}
