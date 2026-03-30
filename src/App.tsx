@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { ClipboardList, Target, Database, Settings, Search } from "lucide-react";
 import { ContentList } from "./features/content-list/ContentList";
 import { SettingsView } from "./features/settings/SettingsView";
 import { DataHubView } from "./features/data-hub/DataHubView";
-import { DigestView } from "./features/digest/DigestView";
+import { RadarView } from "./features/digest/RadarView";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useContentStore } from "./stores/contentStore";
 import { searchContent } from "./services/dataHubService";
@@ -15,14 +16,14 @@ type TabId = "content" | "digest" | "datahub" | "settings";
 interface TabItem {
   id: TabId;
   label: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const TABS: TabItem[] = [
-  { id: "content", label: "内容", icon: "📋" },
-  { id: "digest", label: "消化", icon: "🔄" },
-  { id: "datahub", label: "数据", icon: "📂" },
-  { id: "settings", label: "设置", icon: "⚙️" },
+  { id: "content", label: "内容", icon: ClipboardList },
+  { id: "digest", label: "雷达", icon: Target },
+  { id: "datahub", label: "数据", icon: Database },
+  { id: "settings", label: "设置", icon: Settings },
 ];
 
 function App() {
@@ -120,42 +121,39 @@ function App() {
   }, [switchTab]);
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-indigo-100/80 via-white to-purple-100/60 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 transition-colors duration-300">
-      {/* Floating gradient orbs — the key to glass effect */}
-      <div className="orb orb-1" />
-      <div className="orb orb-2" />
-      <div className="orb orb-3" />
-      <div className="orb orb-4" />
-
+    <div className="min-h-screen relative overflow-hidden bg-[#FAFAF8] dark:bg-[#0C0A09] transition-colors duration-300">
       {/* Header: single-row layout, traffic lights + brand + tabs + search in one bar */}
       <header className="sticky top-0 z-10 bg-white/30 dark:bg-white/[0.03] backdrop-blur-xl border-b border-white/10 dark:border-white/[0.06]" data-tauri-drag-region>
         <div className="relative flex items-center pl-[78px] pr-4 h-[40px]" data-tauri-drag-region>
           {/* Brand — left side, after traffic lights */}
-          <span className="text-base font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent flex-shrink-0" data-tauri-drag-region>
+          <span className="text-base font-bold text-orange-500 flex-shrink-0" data-tauri-drag-region>
             小云
           </span>
 
           {/* Tab navigation — absolute center in the full header width */}
           <nav className="absolute inset-0 flex items-center justify-center pointer-events-none" data-tauri-drag-region>
             <div className="inline-flex bg-gray-100/60 dark:bg-white/[0.06] rounded-md p-0.5 pointer-events-auto">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => switchTab(tab.id)}
-                  className={`
-                    flex items-center gap-1 px-3 py-1 text-[13px] font-medium
-                    rounded transition-all duration-200
-                    ${
-                      activeTab === tab.id
-                        ? "bg-white dark:bg-white/[0.15] text-indigo-600 dark:text-indigo-400 shadow-sm"
-                        : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
-                    }
-                  `}
-                >
-                  <span className="text-xs">{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
+              {TABS.map((tab) => {
+                const IconComponent = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => switchTab(tab.id)}
+                    className={`
+                      flex items-center gap-1 px-3 py-1 text-[13px] font-medium
+                      rounded transition-all duration-200
+                      ${
+                        activeTab === tab.id
+                          ? "bg-white dark:bg-white/[0.15] text-orange-500 dark:text-orange-400 shadow-sm"
+                          : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
+                      }
+                    `}
+                  >
+                    <IconComponent className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </nav>
 
@@ -183,7 +181,7 @@ function App() {
                     className="w-48 px-2.5 py-1 text-xs border border-white/60 dark:border-white/[0.1] rounded-lg
                                bg-white/60 dark:bg-white/[0.06] text-gray-800 dark:text-gray-200
                                placeholder-gray-400 dark:placeholder-slate-500
-                               focus:border-indigo-400/60 dark:focus:border-indigo-500/40
+                               focus:border-orange-400/60 dark:focus:border-orange-500/40
                                outline-none transition-all"
                     autoFocus
                   />
@@ -207,7 +205,7 @@ function App() {
                               setSearchQuery("");
                               setSearchResults([]);
                             }}
-                            className="w-full text-left px-3 py-2 hover:bg-indigo-500/10 dark:hover:bg-indigo-500/15
+                            className="w-full text-left px-3 py-2 hover:bg-orange-500/10 dark:hover:bg-orange-500/15
                                        border-b border-gray-100/50 dark:border-white/[0.04] last:border-0 transition-colors"
                           >
                             <div className="flex items-center gap-2">
@@ -245,13 +243,11 @@ function App() {
             ) : (
               <button
                 onClick={() => setSearchOpen(true)}
-                className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400
+                className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-orange-500 dark:hover:text-orange-400
                            hover:bg-white/50 dark:hover:bg-white/[0.08] rounded-lg transition-all"
                 title="搜索"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
+                <Search className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -261,7 +257,7 @@ function App() {
       {/* Tab content — relative z-index above orbs */}
       <main className="relative z-[1]">
         {activeTab === "content" && <ContentList />}
-        {activeTab === "digest" && <DigestView />}
+        {activeTab === "digest" && <RadarView />}
         {activeTab === "datahub" && <DataHubView />}
         {activeTab === "settings" && <SettingsView />}
       </main>
