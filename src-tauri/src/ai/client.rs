@@ -160,10 +160,7 @@ impl AiClient {
         system_prompt: &str,
         user_message: &str,
     ) -> Result<AiResponse, String> {
-        log::info!(
-            "Calling Anthropic API with model: {}",
-            self.model
-        );
+        log::info!("Calling Anthropic API with model: {}", self.model);
 
         let request_body = AnthropicRequest {
             model: self.model.clone(),
@@ -211,12 +208,11 @@ impl AiClient {
             .map(|c| c.text.clone())
             .unwrap_or_default();
 
-        let tokens_used = parsed.usage.map(|u| (u.input_tokens + u.output_tokens) as i32);
+        let tokens_used = parsed
+            .usage
+            .map(|u| (u.input_tokens + u.output_tokens) as i32);
 
-        log::info!(
-            "Anthropic API 响应成功, tokens: {:?}",
-            tokens_used
-        );
+        log::info!("Anthropic API 响应成功, tokens: {:?}", tokens_used);
 
         Ok(AiResponse { text, tokens_used })
     }
@@ -282,10 +278,7 @@ impl AiClient {
 
         let tokens_used = parsed.usage.map(|u| u.total_tokens as i32);
 
-        log::info!(
-            "OpenAI API 响应成功, tokens: {:?}",
-            tokens_used
-        );
+        log::info!("OpenAI API 响应成功, tokens: {:?}", tokens_used);
 
         Ok(AiResponse { text, tokens_used })
     }
@@ -353,10 +346,7 @@ impl AiClient {
 
         let tokens_used = parsed.usage.map(|u| u.total_tokens as i32);
 
-        log::info!(
-            "OpenRouter API 响应成功, tokens: {:?}",
-            tokens_used
-        );
+        log::info!("OpenRouter API 响应成功, tokens: {:?}", tokens_used);
 
         Ok(AiResponse { text, tokens_used })
     }

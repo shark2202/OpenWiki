@@ -1,11 +1,23 @@
 import { useEffect, Component, type ReactNode } from "react";
-import { RefreshCw, Target, Key, Search } from "lucide-react";
+import { RefreshCw, Key, Target, Search } from "lucide-react";
 import { useRadarStore } from "../../stores/radarStore";
-import { useContentStore } from "../../stores/contentStore";
-import { InsightDetail } from "./InsightDetail";
-import type { BriefingTopic } from "../../services/radarService";
+import type {
+  Glance,
+  InfoDiet,
+  SubconsciousItem,
+  Graveyard,
+  BlindSpot,
+  Action,
+  HeatmapDay,
+  TopicItem,
+  Verdict,
+  Footer,
+  BriefingTopic,
+} from "../../services/radarService";
 
-// Error boundary to prevent crashes from making the whole app transparent
+const ACCENT = "#F97316";
+
+// Error boundary
 class RadarErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   state = { error: null as string | null };
   static getDerivedStateFromError(error: Error) {
@@ -19,8 +31,8 @@ class RadarErrorBoundary extends Component<{ children: ReactNode }, { error: str
           <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{this.state.error}</p>
           <button
             onClick={() => this.setState({ error: null })}
-            className="mt-3 text-orange-500 font-medium"
-            style={{ fontSize: 13 }}
+            className="mt-3 font-medium"
+            style={{ fontSize: 13, color: ACCENT }}
           >
             重试
           </button>
@@ -43,15 +55,13 @@ function RadarViewInner() {
   const {
     status,
     analysis,
+    report,
     contentCount,
     hasNewContent,
     errorMessage,
     isLoading,
-    selectedTopicIndex,
     loadRadar,
     triggerAnalysis,
-    selectTopic,
-    clearSelection,
     setupEventListener,
   } = useRadarStore();
 
@@ -62,42 +72,28 @@ function RadarViewInner() {
     return () => { unlisten?.(); };
   }, [loadRadar, setupEventListener]);
 
-  const topics = analysis?.topics ?? [];
-  const idMap = analysis?.id_map ?? {};
-  const hasFindings = topics.length > 0;
   const isAnalyzing = status === "analyzing";
-  const contents = useContentStore((s) => s.contents);
-
-  // Detail view
-  if (selectedTopicIndex !== null && topics[selectedTopicIndex]) {
-    return (
-      <div className="px-5 py-4 overflow-y-auto" style={{ height: "calc(100vh - 44px)" }}>
-        <InsightDetail
-          topic={topics[selectedTopicIndex]}
-          idMap={idMap}
-          contents={contents}
-          onBack={clearSelection}
-        />
-      </div>
-    );
-  }
+  const hasReport = report !== null;
+  const hasLegacy = analysis !== null && (analysis.topics?.length ?? 0) > 0;
+  const hasFindings = hasReport || hasLegacy;
 
   return (
-    <div className="px-5 py-4 overflow-y-auto" style={{ height: "calc(100vh - 44px)", color: "var(--color-text-primary)" }}>
+    <div className="overflow-y-auto" style={{ height: "calc(100vh - 44px)", color: "var(--color-text-primary)" }}>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-1">
-        <h2
-          className="font-bold"
-          style={{ fontSize: 22, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: "var(--color-text-primary)", letterSpacing: "-0.3px" }}
-        >
-          注意力雷达
-        </h2>
-        <div className="flex items-center gap-3">
-          {!isLoading && hasFindings && (
-            <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-              14天 · {contentCount}条
-            </span>
-          )}
+      <div className="px-5 pt-5 pb-3">
+        <div className="flex items-center justify-between mb-1">
+          <h2
+            style={{
+              fontSize: 22,
+              fontFamily: "'Cabinet Grotesk', sans-serif",
+              fontWeight: 700,
+              color: "var(--color-text-primary)",
+              letterSpacing: "-0.3px",
+            }}
+          >
+            注意力雷达
+          </h2>
           <button
             onClick={() => triggerAnalysis()}
             disabled={isAnalyzing || !hasNewContent}
@@ -109,271 +105,732 @@ function RadarViewInner() {
             <RefreshCw size={18} strokeWidth={2} className={isAnalyzing ? "animate-spin" : ""} />
           </button>
         </div>
+        {!isLoading && hasFindings && (
+          <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
+            AI 深度分析你的信息收藏行为
+          </p>
+        )}
       </div>
 
-      {/* Subtitle */}
-      {!isLoading && hasFindings && (
-        <p className="mb-5" style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-          基于你最近保存的内容，AI 为你提炼了以下洞察
-        </p>
-      )}
+      <div className="px-5 pb-8">
+        {/* Loading */}
+        {isLoading && <LoadingSkeleton />}
 
-      {/* Loading skeleton */}
-      {isLoading && (
-        <div className="space-y-3 mt-6">
-          <div className="h-48 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-32 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
-            <div className="h-32 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+        {/* Empty states */}
+        {!isLoading && status === "no_api_key" && (
+          <EmptyState
+            icon={<Key size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />}
+            title="需要配置 AI 服务"
+            desc="注意力雷达需要 AI 来分析你的内容"
+          />
+        )}
+        {!isLoading && status === "not_enough_content" && (
+          <EmptyState
+            icon={<Target size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />}
+            title="你离洞察只差几步"
+            desc="继续保存你感兴趣的内容，积累到 5 条就能开始分析"
+          />
+        )}
+        {!isLoading && !isAnalyzing && !hasFindings &&
+         status !== "no_api_key" && status !== "not_enough_content" &&
+         status !== "error" && (
+          <EmptyState
+            icon={<Search size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />}
+            title="这两周比较分散"
+            desc="没有特别集中的方向。继续保存，下次分析可能会有新发现。"
+          />
+        )}
+        {!isLoading && status === "error" && (
+          <div className="rounded-xl p-4 mt-4" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
+            <p className="text-red-700 dark:text-red-400 mb-2" style={{ fontSize: 13 }}>
+              {errorMessage || "分析时出现错误"}
+            </p>
+            <button onClick={() => triggerAnalysis()} className="font-medium hover:underline" style={{ fontSize: 13, color: ACCENT }}>
+              重新分析
+            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Empty states */}
-      {!isLoading && status === "no_api_key" && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
-          <Key size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />
-          <p className="text-base font-medium mb-1">需要配置 AI 服务</p>
-          <p className="mb-4" style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-            注意力雷达需要 AI 来分析你的内容
-          </p>
-          <button
-            onClick={() => {/* navigate to settings - handled by parent */}}
-            className="text-orange-500 font-medium hover:underline"
-            style={{ fontSize: 13 }}
-          >
-            前往设置 →
-          </button>
-        </div>
-      )}
+        {/* V3 RadarReport */}
+        {!isLoading && hasReport && report && (
+          <>
+            <StatsGrid report={report} />
+            <Section num="01" title="一眼看穿" subtitle="At a Glance">
+              <AtAGlanceBody items={report.at_a_glance} />
+            </Section>
+            <Section num="02" title="信息食谱" subtitle="摄入结构">
+              <InfoDietBody diet={report.info_diet} />
+            </Section>
+            <Section num="03" title="潜意识雷达" subtitle="没意识到的关注">
+              <SubconsciousBody items={report.subconscious} />
+            </Section>
+            <Section num="04" title="收藏夹坟场" subtitle="沉没风险">
+              <GraveyardBody graveyard={report.graveyard} />
+            </Section>
+            <Section num="05" title="知识空白" subtitle="被忽视的角度">
+              <BlindSpotsBody items={report.blind_spots} />
+            </Section>
+            <Section num="06" title="行动建议" subtitle="可执行">
+              <ActionsBody items={report.actions} />
+            </Section>
+            <Section num="⊹" title="时间热力图" subtitle="每日分布">
+              <HeatmapBody days={report.heatmap} />
+              <div style={{ height: 1, backgroundColor: "var(--color-border)", margin: "16px 0" }} />
+              <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", marginBottom: 10 }}>主题分布</div>
+              <TopicCloudBody items={report.topic_cloud} />
+            </Section>
+            <Section num="07" title="一句话总结" subtitle="Final Verdict">
+              <VerdictBody verdict={report.verdict} />
+            </Section>
+            <ReportFooter footer={report.footer} />
 
-      {!isLoading && status === "not_enough_content" && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
-          <Target size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />
-          <p className="text-base font-medium mb-1">你离洞察只差几步</p>
-          <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-            继续保存你感兴趣的内容，积累到 5 条就能开始分析
-          </p>
-        </div>
-      )}
+            {isAnalyzing && (
+              <div className="text-center py-6">
+                <RefreshCw size={16} className="animate-spin text-stone-400 mx-auto mb-2" />
+                <p className="text-stone-400" style={{ fontSize: 13 }}>正在更新分析...</p>
+              </div>
+            )}
+          </>
+        )}
 
-      {/* No findings (0 topics = scattered) */}
-      {!isLoading && !isAnalyzing && !hasFindings &&
-       status !== "no_api_key" && status !== "not_enough_content" &&
-       status !== "error" && (
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
-          <Search size={48} className="text-stone-300 dark:text-stone-600 mb-4" strokeWidth={1.5} />
-          <p className="text-base font-medium mb-1">这两周比较分散</p>
-          <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-            没有特别集中的方向。继续保存，下次分析可能会有新发现。
-          </p>
-        </div>
-      )}
+        {/* V2 Legacy fallback */}
+        {!isLoading && !hasReport && hasLegacy && analysis && (
+          <>
+            <LegacyBriefingHero topic={analysis.topics[0]} />
+            {analysis.topics.length > 1 && (
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {analysis.topics.slice(1).map((topic) => (
+                  <LegacyBriefingSecondary key={topic.id} topic={topic} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
-      {/* Error state */}
-      {!isLoading && status === "error" && (
-        <div className="rounded-xl p-4 mt-4" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
-          <p className="text-red-700 dark:text-red-400 mb-2" style={{ fontSize: 13 }}>
-            {errorMessage || "分析时出现错误"}
-          </p>
-          <button
-            onClick={() => triggerAnalysis()}
-            className="text-orange-500 font-medium hover:underline"
-            style={{ fontSize: 13 }}
-          >
-            重新分析
-          </button>
-        </div>
-      )}
-
-      {/* Content: Briefing layout */}
-      {!isLoading && hasFindings && (
-        <>
-          {/* Hero: top topic */}
-          <BriefingHero topic={topics[0]} onExpand={() => selectTopic(0)} />
-
-          {/* Secondary topics */}
-          {topics.length > 1 && (
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {topics.slice(1).map((topic, i) => (
-                <BriefingSecondary
-                  key={topic.id}
-                  topic={topic}
-                  onExpand={() => selectTopic(i + 1)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Analyzing overlay when updating existing data */}
-          {isAnalyzing && (
-            <div className="text-center py-6">
-              <RefreshCw size={16} className="animate-spin text-stone-400 mx-auto mb-2" />
-              <p className="text-stone-400" style={{ fontSize: 13 }}>正在更新分析...</p>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Analyzing with no existing data */}
-      {!isLoading && isAnalyzing && !hasFindings && (
-        <div className="space-y-3 mt-6">
-          <div className="h-48 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-32 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
-            <div className="h-32 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
-          </div>
-          <div className="text-center py-4">
-            <RefreshCw size={16} className="animate-spin text-stone-400 mx-auto mb-2" />
-            <p className="text-stone-400" style={{ fontSize: 13 }}>正在深度分析你的内容...</p>
-          </div>
-        </div>
-      )}
+        {/* Analyzing with no data */}
+        {!isLoading && isAnalyzing && !hasFindings && <AnalyzingSkeleton />}
+      </div>
     </div>
   );
 }
 
-// --- Hero Card (top topic) ---
+// ====================================================================
+// Stats Grid (top 5 numbers)
+// ====================================================================
 
-function BriefingHero({ topic, onExpand }: { topic: BriefingTopic; onExpand: () => void }) {
-  const evidenceChips = topic.evidence_indices.slice(0, 3);
-  const moreCount = topic.evidence_indices.length - 3;
+function StatsGrid({ report }: { report: { meta: { total_items: number; active_days: number; annotated_items: number; annotation_rate: string; source_count: number }; footer: { total_days: number } } }) {
+  const { meta } = report;
+  const stats = [
+    { n: meta.total_items, l: "保存条目" },
+    { n: meta.active_days, l: "活跃天数" },
+    { n: meta.annotated_items, l: "带备注" },
+    { n: meta.annotation_rate, l: "主动率" },
+    { n: meta.source_count, l: "信息源" },
+  ];
 
   return (
     <div
-      onClick={onExpand}
-      className="rounded-xl p-5 mb-3 cursor-pointer transition-colors"
-      style={{
-        backgroundColor: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(251, 146, 60, 0.3)"}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--color-border)"}
+      className="grid grid-cols-5 mb-6 overflow-hidden"
+      style={{ borderRadius: 14, border: "1px solid var(--color-border)" }}
     >
-      {/* Tag */}
-      <div className="flex items-center gap-1.5 mb-3">
-        <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "#FB923C" }}>
-          {topic.tag}
+      {stats.map((s, i) => (
+        <div
+          key={i}
+          className="text-center py-4 px-2"
+          style={{
+            backgroundColor: "var(--color-surface)",
+            borderRight: i < 4 ? "1px solid var(--color-border)" : undefined,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 800,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: ACCENT,
+            }}
+          >
+            {s.n}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--color-text-muted)", marginTop: 4, textTransform: "uppercase" }}>
+            {s.l}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// Section wrapper with numbered tag
+// ====================================================================
+
+function Section({ num, title, subtitle, children }: { num: string; title: string; subtitle: string; children: ReactNode }) {
+  return (
+    <div className="mb-5" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16 }}>
+      {/* Section header */}
+      <div className="flex items-center gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: ACCENT,
+            backgroundColor: `${ACCENT}15`,
+            border: `1px solid ${ACCENT}30`,
+            borderRadius: 6,
+            padding: "2px 8px",
+            flexShrink: 0,
+          }}
+        >
+          {num}
+        </span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text-primary)" }}>
+          {title}{" "}
+          <span style={{ color: ACCENT }}>{subtitle}</span>
         </span>
       </div>
+      {/* Section body */}
+      <div className="px-5 py-4">{children}</div>
+    </div>
+  );
+}
 
-      {/* Insight title */}
-      <h3
-        className="mb-3"
-        style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.4, fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--color-text-primary)" }}
+// ====================================================================
+// 01 At a Glance
+// ====================================================================
+
+function AtAGlanceBody({ items }: { items: Glance[] }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="rounded-xl p-4"
+          style={{
+            backgroundColor: `${ACCENT}08`,
+            border: `1px solid ${ACCENT}20`,
+          }}
+        >
+          <p style={{ fontSize: 14, lineHeight: 1.8, color: "var(--color-text-secondary)" }}>
+            <HighlightText text={item.text} highlight={item.highlight} />
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// 02 Info Diet
+// ====================================================================
+
+function InfoDietBody({ diet }: { diet: InfoDiet }) {
+  const maxCount = Math.max(...diet.sources.map((s) => s.count), 1);
+
+  return (
+    <>
+      <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", marginBottom: 10 }}>来源分布</div>
+      <div className="space-y-2 mb-4">
+        {diet.sources.map((src) => (
+          <div key={src.name} className="flex items-center gap-3">
+            <span className="w-20 text-right shrink-0" style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
+              {src.name}
+            </span>
+            <div className="flex-1 rounded-md overflow-hidden" style={{ height: 24, backgroundColor: "var(--color-surface-raised, #F5F5F0)" }}>
+              <div
+                className="h-full rounded-md flex items-center justify-end px-2"
+                style={{
+                  width: `${Math.max((src.count / maxCount) * 100, 8)}%`,
+                  background: sourceGradient(src.color),
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>{src.count}条</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <MiniCard title="深度vs碎片" value={diet.depth_ratio.label} percent={parsePercent(diet.depth_ratio.label)} />
+        <MiniCard
+          title="偏食度"
+          value={`${diet.dominant_topic.name} ${diet.dominant_topic.percent.toFixed(0)}%`}
+          percent={diet.dominant_topic.percent}
+        />
+      </div>
+
+      {/* Alert */}
+      {diet.alert && (
+        <div
+          className="flex gap-2 rounded-xl px-4 py-3"
+          style={{
+            fontSize: 13,
+            backgroundColor: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          <span>⚠️</span>
+          <span>{diet.alert}</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MiniCard({ title, value, percent }: { title: string; value: string; percent: number }) {
+  return (
+    <div className="rounded-xl p-3" style={{ backgroundColor: "var(--color-surface-raised, #F5F5F0)", border: "1px solid var(--color-border)" }}>
+      <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)" }}>{value}</div>
+      <div className="mt-2 rounded-full overflow-hidden" style={{ height: 4, backgroundColor: "var(--color-border)" }}>
+        <div className="h-full rounded-full" style={{ width: `${Math.min(percent, 100)}%`, background: `linear-gradient(90deg, ${ACCENT}, #FB923C)` }} />
+      </div>
+    </div>
+  );
+}
+
+// ====================================================================
+// 03 Subconscious
+// ====================================================================
+
+function SubconsciousBody({ items }: { items: SubconsciousItem[] }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="rounded-r-xl py-3 px-4"
+          style={{
+            backgroundColor: "var(--color-surface-raised, #F5F5F0)",
+            borderLeft: `3px solid ${ACCENT}`,
+          }}
+        >
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>
+              🎯 {item.title}
+            </span>
+            {item.evidence_count != null && (
+              <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: ACCENT, whiteSpace: "nowrap" }}>
+                {item.evidence_count} 条证据
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-text-secondary)" }}>{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// 04 Graveyard
+// ====================================================================
+
+function GraveyardBody({ graveyard }: { graveyard: Graveyard }) {
+  return (
+    <>
+      {/* Alert */}
+      <div
+        className="flex gap-2 rounded-xl px-4 py-3 mb-4"
+        style={{
+          fontSize: 13,
+          backgroundColor: "rgba(245, 158, 11, 0.08)",
+          border: "1px solid rgba(245, 158, 11, 0.2)",
+          color: "var(--color-text-secondary)",
+        }}
       >
-        {topic.insight_title}
-      </h3>
+        <span>🪦</span>
+        <span>{graveyard.alert}</span>
+      </div>
 
-      {/* Key findings */}
+      <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", marginBottom: 10 }}>值得重读</div>
+
+      <div className="space-y-3">
+        {graveyard.top_picks.map((pick) => (
+          <div
+            key={pick.rank}
+            className="rounded-xl p-4 flex gap-3"
+            style={{ backgroundColor: "var(--color-surface-raised, #F5F5F0)", border: "1px solid var(--color-border)" }}
+          >
+            {/* Numbered circle */}
+            <div
+              className="shrink-0 flex items-center justify-center"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: `linear-gradient(135deg, ${ACCENT}, #EA580C)`,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              {pick.rank}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 4 }}>{pick.title}</div>
+              <p style={{ fontSize: 12, lineHeight: 1.6, color: "var(--color-text-muted)", marginBottom: 8 }}>{pick.reason}</p>
+              {pick.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {pick.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full px-2.5 py-0.5"
+                      style={{
+                        fontSize: 10,
+                        color: ACCENT,
+                        backgroundColor: `${ACCENT}10`,
+                        border: `1px solid ${ACCENT}25`,
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ====================================================================
+// 05 Blind Spots
+// ====================================================================
+
+function BlindSpotsBody({ items }: { items: BlindSpot[] }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="rounded-xl p-4"
+          style={{
+            backgroundColor: `${ACCENT}08`,
+            border: `1px solid ${ACCENT}20`,
+          }}
+        >
+          <h4 className="mb-1" style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)" }}>{item.title}</h4>
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-text-secondary)" }}>{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// 06 Actions
+// ====================================================================
+
+function ActionsBody({ items }: { items: Action[] }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item, i) => (
+        <div
+          key={i}
+          className="rounded-xl p-4 flex gap-3"
+          style={{ backgroundColor: "var(--color-surface-raised, #F5F5F0)", border: "1px solid var(--color-border)" }}
+        >
+          <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
+          <div className="flex-1 min-w-0">
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 4 }}>{item.title}</div>
+            <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)", marginBottom: 8 }}>{item.desc}</p>
+            <div className="flex items-center gap-2">
+              <span
+                className="rounded-full px-2.5 py-0.5"
+                style={{ fontSize: 10, color: ACCENT, backgroundColor: `${ACCENT}10`, border: `1px solid ${ACCENT}25` }}
+              >
+                {item.ref}
+              </span>
+              <span
+                className="rounded-full px-2.5 py-0.5"
+                style={{ fontSize: 10, color: "#10B981", backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.18)" }}
+              >
+                ⏱ {item.time}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// Heatmap
+// ====================================================================
+
+function HeatmapBody({ days }: { days: HeatmapDay[] }) {
+  const maxCount = Math.max(...days.map((d) => d.count), 1);
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {days.map((day) => {
+        const intensity = day.count / maxCount;
+        const isPeak = intensity > 0.8 && day.count > 0;
+        const bg = day.count === 0
+          ? "var(--color-surface-raised, #F5F5F0)"
+          : `rgba(249, 115, 22, ${0.15 + intensity * 0.85})`;
+
+        return (
+          <div key={day.date} className="flex flex-col items-center gap-1">
+            <div
+              className="flex items-center justify-center rounded-lg"
+              style={{
+                width: 40,
+                height: 40,
+                backgroundColor: bg,
+                border: day.count === 0 ? "1px solid var(--color-border)" : undefined,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: intensity > 0.4 ? "#fff" : "var(--color-text-muted)",
+                }}
+              >
+                {day.count > 0 ? day.count : ""}
+              </span>
+            </div>
+            <span
+              style={{
+                fontSize: 9,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: "var(--color-text-muted)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {formatHeatDate(day.date)}{isPeak ? "⚡" : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ====================================================================
+// Topic Cloud (pill style)
+// ====================================================================
+
+function TopicCloudBody({ items }: { items: TopicItem[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item) => (
+        <span
+          key={item.name}
+          className="rounded-full px-3 py-1"
+          style={{
+            fontSize: 13,
+            color: ACCENT,
+            backgroundColor: `${ACCENT}10`,
+            border: `1px solid ${ACCENT}25`,
+          }}
+        >
+          {item.name} ({item.percent.toFixed(0)}%)
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ====================================================================
+// 07 Verdict
+// ====================================================================
+
+function VerdictBody({ verdict }: { verdict: Verdict }) {
+  return (
+    <div
+      className="rounded-xl py-6 px-5 text-center"
+      style={{
+        background: `linear-gradient(135deg, ${ACCENT}12, rgba(234, 88, 12, 0.08))`,
+        border: `1px solid ${ACCENT}30`,
+      }}
+    >
+      <p
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          lineHeight: 1.7,
+          fontFamily: "'Cabinet Grotesk', sans-serif",
+          color: "var(--color-text-primary)",
+        }}
+      >
+        <HighlightVerdict text={verdict.text} highlights={verdict.highlights} />
+      </p>
+    </div>
+  );
+}
+
+// ====================================================================
+// Footer
+// ====================================================================
+
+function ReportFooter({ footer }: { footer: Footer }) {
+  return (
+    <div className="text-center py-4 mt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+      <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "var(--color-text-muted)" }}>
+        <strong>小云雷达</strong> · {footer.date_range} · {footer.total} 条内容 · {footer.active_days}/{footer.total_days} 天活跃
+      </div>
+    </div>
+  );
+}
+
+// ====================================================================
+// Legacy v2 Briefing cards (fallback)
+// ====================================================================
+
+function LegacyBriefingHero({ topic }: { topic: BriefingTopic }) {
+  return (
+    <div className="rounded-xl p-4 mb-3" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
+      <div className="flex items-center gap-1.5 mb-3">
+        <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: ACCENT }}>{topic.tag}</span>
+      </div>
+      <h3 className="mb-3" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.4, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{topic.insight_title}</h3>
       {topic.key_findings.length > 0 && (
         <div className="mb-3 space-y-2">
           {topic.key_findings.map((finding, i) => (
             <div key={i} className="flex gap-2" style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)" }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: "#FB923C", minWidth: 18, paddingTop: 2 }}>
-                {i + 1}
-              </span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: ACCENT, minWidth: 18, paddingTop: 2 }}>{i + 1}</span>
               <span>{finding}</span>
             </div>
           ))}
         </div>
       )}
-
-      {/* Suggestion */}
       {topic.suggestion && (
-        <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: "var(--color-accent-soft, #431407)", border: "1px solid rgba(251, 146, 60, 0.25)" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "#FB923C", marginBottom: 4 }}>
-            建议
-          </div>
-          <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)" }}>
-            {topic.suggestion}
-          </div>
+        <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: `${ACCENT}10`, border: `1px solid ${ACCENT}30` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: ACCENT, marginBottom: 4 }}>建议</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)" }}>{topic.suggestion}</div>
         </div>
       )}
-
-      {/* Evidence chips */}
-      {evidenceChips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {evidenceChips.map((idx) => (
-            <span key={idx} className="rounded-md px-2.5 py-0.5" style={{ fontSize: 11, color: "var(--color-text-muted)", backgroundColor: "var(--color-surface-raised, #292524)", border: "1px solid var(--color-border)" }}>
-              内容 #{idx}
-            </span>
-          ))}
-          {moreCount > 0 && (
-            <span style={{ fontSize: 10, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace", padding: "2px 6px" }}>
-              +{moreCount} 条
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--color-border)" }}>
-        <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-          {topic.content_count} 条内容 · 持续 {topic.span_days} 天
-        </span>
-        <TrendBadge trend={topic.trend} />
+      <div className="pt-3" style={{ borderTop: "1px solid var(--color-border)", fontSize: 11, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {topic.content_count} 条内容 · 持续 {topic.span_days} 天
       </div>
     </div>
   );
 }
 
-// --- Secondary Card ---
-
-function BriefingSecondary({ topic, onExpand }: { topic: BriefingTopic; onExpand: () => void }) {
+function LegacyBriefingSecondary({ topic }: { topic: BriefingTopic }) {
   const tagColor = topic.tag === "新兴关注" ? "#4ADE80" : "#3B82F6";
-  const truncatedAnalysis = topic.deep_analysis.length > 80
-    ? topic.deep_analysis.slice(0, 80) + "..."
-    : topic.deep_analysis;
+  const truncatedAnalysis = topic.deep_analysis.length > 80 ? topic.deep_analysis.slice(0, 80) + "..." : topic.deep_analysis;
 
   return (
-    <div
-      onClick={onExpand}
-      className="rounded-xl p-4 cursor-pointer transition-colors"
-      style={{
-        backgroundColor: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = "var(--color-border)"}
-    >
-      {/* Tag */}
+    <div className="rounded-xl p-3" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
       <div className="flex items-center gap-1.5 mb-2">
         <span className="w-1 h-1 rounded-full" style={{ backgroundColor: tagColor }} />
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tagColor }}>
-          {topic.tag}
-        </span>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tagColor }}>{topic.tag}</span>
       </div>
-
-      {/* Title */}
-      <h4 className="mb-1.5" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: "var(--color-text-primary)" }}>
-        {topic.insight_title}
-      </h4>
-
-      {/* Description */}
-      <p className="mb-2.5" style={{ fontSize: 12, lineHeight: 1.5, color: "var(--color-text-muted)" }}>
-        {truncatedAnalysis}
-      </p>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between" style={{ fontSize: 10, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
-        <span>{topic.content_count} 条 · {topic.span_days} 天</span>
-        <TrendBadge trend={topic.trend} />
+      <h4 className="mb-1.5" style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>{topic.insight_title}</h4>
+      <p className="mb-2.5" style={{ fontSize: 12, lineHeight: 1.5, color: "var(--color-text-muted)" }}>{truncatedAnalysis}</p>
+      <div style={{ fontSize: 10, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {topic.content_count} 条 · {topic.span_days} 天
       </div>
     </div>
   );
 }
 
-// --- Trend Badge ---
+// ====================================================================
+// Helpers
+// ====================================================================
 
-function TrendBadge({ trend }: { trend: string }) {
-  const config: Record<string, { label: string; color: string }> = {
-    growing: { label: "↑ 持续增长", color: "#4ADE80" },
-    emerging: { label: "● 新兴", color: "#3B82F6" },
-    stable: { label: "— 稳定", color: "var(--color-text-muted)" },
-    fading: { label: "↓ 消退", color: "var(--color-text-muted)" },
-  };
-  const { label, color } = config[trend] ?? config.stable;
-  return <span style={{ fontSize: 11, fontWeight: 500, color }}>{label}</span>;
+function HighlightText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight) return <>{text}</>;
+  const idx = text.indexOf(highlight);
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ color: ACCENT, fontWeight: 600 }}>{highlight}</span>
+      {text.slice(idx + highlight.length)}
+    </>
+  );
+}
+
+function HighlightVerdict({ text, highlights }: { text: string; highlights: string[] }) {
+  if (!highlights.length) return <>{text}</>;
+  let parts: (string | { hl: string })[] = [text];
+  for (const hl of highlights) {
+    const newParts: (string | { hl: string })[] = [];
+    for (const part of parts) {
+      if (typeof part !== "string") { newParts.push(part); continue; }
+      const idx = part.indexOf(hl);
+      if (idx === -1) { newParts.push(part); } else {
+        if (idx > 0) newParts.push(part.slice(0, idx));
+        newParts.push({ hl });
+        if (idx + hl.length < part.length) newParts.push(part.slice(idx + hl.length));
+      }
+    }
+    parts = newParts;
+  }
+  return (
+    <>
+      {parts.map((p, i) =>
+        typeof p === "string"
+          ? <span key={i}>{p}</span>
+          : <span key={i} style={{ color: ACCENT }}>{p.hl}</span>
+      )}
+    </>
+  );
+}
+
+function sourceGradient(color: string): string {
+  switch (color) {
+    case "wechat": return "linear-gradient(90deg, #15803D, #22C55E)";
+    case "chrome": return "linear-gradient(90deg, #1D4ED8, #3B82F6)";
+    case "xiaoyun": return `linear-gradient(90deg, #EA580C, ${ACCENT})`;
+    default: return "linear-gradient(90deg, #78716C, #A8A29E)";
+  }
+}
+
+function formatHeatDate(date: string): string {
+  // "2026-03-21" -> "3/21"
+  const parts = date.split("-");
+  if (parts.length === 3) return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+  return date;
+}
+
+function parsePercent(label: string): number {
+  const m = label.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 50;
+}
+
+function EmptyState({ icon, title, desc }: { icon: ReactNode; title: string; desc: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
+      {icon}
+      <p className="text-base font-medium mb-1">{title}</p>
+      <p style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{desc}</p>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-3 mt-6">
+      <div className="h-20 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+      <div className="h-48 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+      <div className="h-32 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+    </div>
+  );
+}
+
+function AnalyzingSkeleton() {
+  return (
+    <div className="space-y-3 mt-6">
+      <div className="h-20 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+      <div className="h-48 bg-stone-100 dark:bg-white/[0.06] rounded-xl animate-pulse" />
+      <div className="text-center py-4">
+        <RefreshCw size={16} className="animate-spin text-stone-400 mx-auto mb-2" />
+        <p className="text-stone-400" style={{ fontSize: 13 }}>正在深度分析你的内容...</p>
+      </div>
+    </div>
+  );
 }

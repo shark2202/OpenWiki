@@ -39,10 +39,8 @@ pub fn update_setting(
 #[tauri::command]
 pub fn check_xreader_status() -> Result<XReaderStatus, String> {
     // Built-in readers — no external Python dependencies needed
-    let supported_platforms: Vec<String> = BUILTIN_PLATFORMS
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let supported_platforms: Vec<String> =
+        BUILTIN_PLATFORMS.iter().map(|s| s.to_string()).collect();
 
     Ok(XReaderStatus {
         installed: true, // Built-in, always available

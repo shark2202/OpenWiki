@@ -45,11 +45,7 @@ pub async fn generate_weekly_report(
     provider: &str,
     model: &str,
 ) -> Result<WeeklyReport, String> {
-    log::info!(
-        "开始生成周报, provider={}, model={}",
-        provider,
-        model
-    );
+    log::info!("开始生成周报, provider={}, model={}", provider, model);
 
     // Step 1: Calculate the date range for the past 7 days
     let now = Utc::now();
@@ -107,7 +103,11 @@ pub async fn generate_weekly_report(
 
         // Dynamic truncation: high-importance items get more chars
         let max_chars: usize = if is_fetched_url {
-            if scored.importance > 0.5 { 1200 } else { 800 }
+            if scored.importance > 0.5 {
+                1200
+            } else {
+                800
+            }
         } else if scored.importance > 0.5 {
             700
         } else {
@@ -127,11 +127,7 @@ pub async fn generate_weekly_report(
         };
 
         // Include importance hint for AI context
-        let importance_tag = if scored.importance > 0.6 {
-            " ⭐"
-        } else {
-            ""
-        };
+        let importance_tag = if scored.importance > 0.6 { " ⭐" } else { "" };
 
         let line = if is_fetched_url {
             let url = item.source_url.as_deref().unwrap_or("");
@@ -162,11 +158,7 @@ pub async fn generate_weekly_report(
     let user_message = prompts::weekly_report_user_message(&content_summaries, &preference_summary);
 
     // Step 7: Call the AI API
-    let client = AiClient::new(
-        api_key.to_string(),
-        provider.to_string(),
-        model.to_string(),
-    );
+    let client = AiClient::new(api_key.to_string(), provider.to_string(), model.to_string());
 
     let ai_response = client
         .send_message(&system_prompt, &user_message)
@@ -199,9 +191,7 @@ pub async fn generate_weekly_report(
     let mut daily_counts = [0i32; 7];
     let mut type_counts: HashMap<String, usize> = HashMap::new();
     for item in &contents {
-        *source_counts
-            .entry(item.source_app.clone())
-            .or_insert(0) += 1;
+        *source_counts.entry(item.source_app.clone()).or_insert(0) += 1;
         *type_counts
             .entry(item.content_type.as_str().to_string())
             .or_insert(0) += 1;
@@ -293,7 +283,10 @@ fn strip_markdown_code_block(text: &str) -> String {
 
     // Check for ```json or ``` prefix
     let without_prefix = if trimmed.starts_with("```json") {
-        trimmed.strip_prefix("```json").unwrap_or(trimmed).trim_start()
+        trimmed
+            .strip_prefix("```json")
+            .unwrap_or(trimmed)
+            .trim_start()
     } else if trimmed.starts_with("```") {
         trimmed.strip_prefix("```").unwrap_or(trimmed).trim_start()
     } else {

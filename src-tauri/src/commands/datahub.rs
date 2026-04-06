@@ -7,8 +7,7 @@ use tauri::State;
 
 /// Get the default export directory (~/Downloads/小云导出/).
 fn default_export_dir() -> PathBuf {
-    dirs::download_dir()
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
+    dirs::download_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Downloads"))
 }
 
 /// Resolve the export directory from settings or use the default.
@@ -85,8 +84,8 @@ pub async fn export_all_single(state: State<'_, AppState>) -> Result<String, Str
     let repo = Repository::new(state.db.clone());
     let export_dir = resolve_export_dir(&repo);
 
-    let (path, _count) = markdown::export_all_single_file(&repo, &export_dir)
-        .map_err(|e| e.to_string())?;
+    let (path, _count) =
+        markdown::export_all_single_file(&repo, &export_dir).map_err(|e| e.to_string())?;
 
     // Reveal the file in Finder
     let _ = std::process::Command::new("open")
@@ -152,19 +151,13 @@ pub async fn open_export_dir(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn open_data_folder() -> Result<(), String> {
-    let data_dir = dirs::data_dir()
-        .unwrap_or_default()
-        .join("com.xiaoyun.app");
+    let data_dir = dirs::data_dir().unwrap_or_default().join("com.xiaoyun.app");
 
     // Use "open -R" to reveal in Finder, targeting the db file.
     // macOS treats ".app" directories as application bundles,
     // so "open com.xiaoyun.app/" fails. Revealing a file inside works.
     let target = data_dir.join("xiaoyun.db");
-    let reveal_target = if target.exists() {
-        target
-    } else {
-        data_dir
-    };
+    let reveal_target = if target.exists() { target } else { data_dir };
 
     std::process::Command::new("open")
         .arg("-R")
@@ -194,9 +187,7 @@ pub async fn get_storage_info(state: State<'_, AppState>) -> Result<serde_json::
         .unwrap_or_default()
         .join("com.xiaoyun.app")
         .join("xiaoyun.db");
-    let disk_bytes = std::fs::metadata(&db_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
+    let disk_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
     let disk_mb = disk_bytes as f64 / (1024.0 * 1024.0);
 
     Ok(serde_json::json!({

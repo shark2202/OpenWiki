@@ -188,11 +188,7 @@ pub fn export_day(
     let md = generate_day_markdown(date, &contents, export_dir)?;
 
     // Create month subdirectory, e.g. "2026-03/"
-    let month_dir_name = if date.len() >= 7 {
-        &date[..7]
-    } else {
-        date
-    };
+    let month_dir_name = if date.len() >= 7 { &date[..7] } else { date };
     let month_dir = export_dir.join(month_dir_name);
     fs::create_dir_all(&month_dir)?;
 
@@ -292,7 +288,9 @@ fn export_dates_to_single_file(
             Ok(c) => c,
             Err(_) => continue,
         };
-        if contents.is_empty() { continue; }
+        if contents.is_empty() {
+            continue;
+        }
         total_items += contents.len();
         let day_md = generate_day_markdown(date, &contents, export_dir)?;
         md.push_str(&day_md);
@@ -305,7 +303,11 @@ fn export_dates_to_single_file(
 
     let file_path = export_dir.join(format!("{}.md", filename));
     fs::write(&file_path, &md)?;
-    log::info!("Exported {} items to single file: {}", total_items, file_path.display());
+    log::info!(
+        "Exported {} items to single file: {}",
+        total_items,
+        file_path.display()
+    );
 
     Ok((file_path, total_items))
 }

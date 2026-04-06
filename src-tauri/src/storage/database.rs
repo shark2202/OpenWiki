@@ -66,7 +66,9 @@ impl Database {
 
         // Migration 003: Add chat_messages table
         let has_chat_messages: bool = conn
-            .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chat_messages'")?
+            .prepare(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chat_messages'",
+            )?
             .query_row([], |row| row.get::<_, i32>(0))
             .map(|count| count > 0)
             .unwrap_or(false);
@@ -105,12 +107,16 @@ impl Database {
 
         // Migration 006: Add summary and tags columns to captured_content
         let has_summary: bool = conn
-            .prepare("SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='summary'")?
+            .prepare(
+                "SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='summary'",
+            )?
             .query_row([], |row| row.get::<_, i32>(0))
             .map(|c| c > 0)
             .unwrap_or(false);
         let has_tags: bool = conn
-            .prepare("SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='tags'")?
+            .prepare(
+                "SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='tags'",
+            )?
             .query_row([], |row| row.get::<_, i32>(0))
             .map(|c| c > 0)
             .unwrap_or(false);

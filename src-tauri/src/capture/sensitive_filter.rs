@@ -58,7 +58,9 @@ mod tests {
     #[test]
     fn test_detects_private_key() {
         assert!(contains_sensitive_data("-----BEGIN RSA PRIVATE KEY-----"));
-        assert!(contains_sensitive_data("-----BEGIN OPENSSH PRIVATE KEY-----"));
+        assert!(contains_sensitive_data(
+            "-----BEGIN OPENSSH PRIVATE KEY-----"
+        ));
     }
 
     #[test]

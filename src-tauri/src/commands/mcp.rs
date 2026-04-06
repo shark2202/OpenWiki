@@ -47,8 +47,9 @@ impl McpTarget {
     fn config_path(&self) -> Option<PathBuf> {
         match self {
             McpTarget::Claude => {
-                let base = dirs::data_dir()
-                    .or_else(|| dirs::home_dir().map(|h| h.join("Library").join("Application Support")))?;
+                let base = dirs::data_dir().or_else(|| {
+                    dirs::home_dir().map(|h| h.join("Library").join("Application Support"))
+                })?;
                 Some(base.join("Claude").join("claude_desktop_config.json"))
             }
             McpTarget::Openclaw => {
@@ -163,18 +164,15 @@ fn is_process_running(name: &str) -> bool {
 
 /// Read and parse the Claude Desktop config file.
 fn read_config(path: &PathBuf) -> Result<serde_json::Value, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("无法读取配置文件: {}", e))?;
-    serde_json::from_str(&content)
-        .map_err(|e| format!("配置文件格式错误 (JSON 无效): {}", e))
+    let content = std::fs::read_to_string(path).map_err(|e| format!("无法读取配置文件: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| format!("配置文件格式错误 (JSON 无效): {}", e))
 }
 
 /// Write the config back to file.
 fn write_config(path: &PathBuf, config: &serde_json::Value) -> Result<(), String> {
-    let content = serde_json::to_string_pretty(config)
-        .map_err(|e| format!("JSON 序列化失败: {}", e))?;
-    std::fs::write(path, content)
-        .map_err(|e| format!("无法写入配置文件: {}", e))
+    let content =
+        serde_json::to_string_pretty(config).map_err(|e| format!("JSON 序列化失败: {}", e))?;
+    std::fs::write(path, content).map_err(|e| format!("无法写入配置文件: {}", e))
 }
 
 /// Create a timestamped backup of the config file.
@@ -184,8 +182,7 @@ fn backup_config(path: &PathBuf) -> Result<(), String> {
     }
     let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     let backup_path = path.with_extension(format!("json.bak.{}", timestamp));
-    std::fs::copy(path, &backup_path)
-        .map_err(|e| format!("备份失败: {}", e))?;
+    std::fs::copy(path, &backup_path).map_err(|e| format!("备份失败: {}", e))?;
     log::info!("Config backed up to {:?}", backup_path);
     Ok(())
 }
@@ -193,7 +190,10 @@ fn backup_config(path: &PathBuf) -> Result<(), String> {
 #[tauri::command]
 pub async fn get_mcp_status(target: McpTarget) -> Result<McpStatus, String> {
     let config_path = target.config_path();
-    let installed = config_path.as_ref().map(|p| p.parent().map(|d| d.exists()).unwrap_or(false)).unwrap_or(false);
+    let installed = config_path
+        .as_ref()
+        .map(|p| p.parent().map(|d| d.exists()).unwrap_or(false))
+        .unwrap_or(false);
     let node_installed = is_node_installed();
 
     let connected = if let Some(ref path) = config_path {
@@ -227,9 +227,11 @@ pub async fn connect_mcp(target: McpTarget) -> Result<String, String> {
     }
 
     // 2. Check config directory
-    let config_path = target.config_path()
+    let config_path = target
+        .config_path()
         .ok_or(format!("无法确定 {} 配置路径", name))?;
-    let config_dir = config_path.parent()
+    let config_dir = config_path
+        .parent()
         .ok_or(format!("无法确定 {} 配置目录", name))?;
 
     if !config_dir.exists() {
@@ -243,8 +245,7 @@ pub async fn connect_mcp(target: McpTarget) -> Result<String, String> {
     }
 
     // 3. Get absolute db path
-    let db_path = xiaoyun_db_path()
-        .ok_or("无法确定小云数据库路径")?;
+    let db_path = xiaoyun_db_path().ok_or("无法确定小云数据库路径")?;
 
     // 4. Read or create config
     let mut config = if config_path.exists() {
@@ -301,7 +302,8 @@ pub async fn connect_mcp(target: McpTarget) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn disconnect_mcp(target: McpTarget) -> Result<(), String> {
-    let config_path = target.config_path()
+    let config_path = target
+        .config_path()
         .ok_or(format!("无法确定 {} 配置路径", target.display_name()))?;
 
     if !config_path.exists() {
@@ -323,25 +325,28 @@ pub async fn disconnect_mcp(target: McpTarget) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn copy_content_summary(
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn copy_content_summary(state: State<'_, AppState>) -> Result<(), String> {
     let repo = Repository::new(state.db.clone());
 
     // Get last 7 days of content
     let now = chrono::Local::now();
     let week_ago = now - chrono::Duration::days(7);
-    let contents = repo.get_content_for_week(
-        &week_ago.format("%Y-%m-%dT00:00:00").to_string(),
-        &now.format("%Y-%m-%dT23:59:59").to_string(),
-    ).map_err(|e| e.to_string())?;
+    let contents = repo
+        .get_content_for_week(
+            &week_ago.format("%Y-%m-%dT00:00:00").to_string(),
+            &now.format("%Y-%m-%dT23:59:59").to_string(),
+        )
+        .map_err(|e| e.to_string())?;
 
     let text = if contents.is_empty() {
         "最近 7 天没有保存的内容。".to_string()
     } else {
         let total = contents.len();
         let mut lines = Vec::new();
-        lines.push(format!("以下是我最近 7 天保存的内容（共 {} 条）：\n", total));
+        lines.push(format!(
+            "以下是我最近 7 天保存的内容（共 {} 条）：\n",
+            total
+        ));
 
         for (i, item) in contents.iter().enumerate() {
             let date = &item.captured_at[..10];
@@ -362,9 +367,24 @@ pub async fn copy_content_summary(
             let tags = item.tags.as_deref().unwrap_or("");
 
             if tags.is_empty() {
-                lines.push(format!("{}. [{}] [{}] 来自 {}: {}", i + 1, date, content_type, source, description));
+                lines.push(format!(
+                    "{}. [{}] [{}] 来自 {}: {}",
+                    i + 1,
+                    date,
+                    content_type,
+                    source,
+                    description
+                ));
             } else {
-                lines.push(format!("{}. [{}] [{}] 来自 {}: {} ({})", i + 1, date, content_type, source, description, tags));
+                lines.push(format!(
+                    "{}. [{}] [{}] 来自 {}: {} ({})",
+                    i + 1,
+                    date,
+                    content_type,
+                    source,
+                    description,
+                    tags
+                ));
             }
         }
 
@@ -373,9 +393,9 @@ pub async fn copy_content_summary(
     };
 
     // Write to clipboard directly via arboard
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|e| format!("无法访问剪贴板: {}", e))?;
-    clipboard.set_text(&text)
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("无法访问剪贴板: {}", e))?;
+    clipboard
+        .set_text(&text)
         .map_err(|e| format!("写入剪贴板失败: {}", e))?;
 
     Ok(())
@@ -443,7 +463,8 @@ mod tests {
     fn test_inject_xiaoyun_entry_new_config() {
         let mut config = serde_json::json!({});
         let servers = config
-            .as_object_mut().unwrap()
+            .as_object_mut()
+            .unwrap()
             .entry("mcpServers")
             .or_insert_with(|| serde_json::json!({}));
         servers.as_object_mut().unwrap().insert(
@@ -496,8 +517,16 @@ mod tests {
     #[test]
     fn test_xiaoyun_db_path_is_absolute() {
         if let Some(path) = xiaoyun_db_path() {
-            assert!(path.starts_with('/'), "DB path should be absolute: {}", path);
-            assert!(!path.contains('~'), "DB path should not contain tilde: {}", path);
+            assert!(
+                path.starts_with('/'),
+                "DB path should be absolute: {}",
+                path
+            );
+            assert!(
+                !path.contains('~'),
+                "DB path should not contain tilde: {}",
+                path
+            );
         }
     }
 
@@ -505,7 +534,8 @@ mod tests {
     fn test_config_no_mcp_servers_key() {
         let mut config = serde_json::json!({"someOtherKey": true});
         let servers = config
-            .as_object_mut().unwrap()
+            .as_object_mut()
+            .unwrap()
             .entry("mcpServers")
             .or_insert_with(|| serde_json::json!({}));
         servers.as_object_mut().unwrap().insert(
@@ -536,7 +566,10 @@ mod tests {
 
         // Disconnect
         let mut config = read_config(&path).unwrap();
-        config["mcpServers"].as_object_mut().unwrap().remove(MCP_SERVER_KEY);
+        config["mcpServers"]
+            .as_object_mut()
+            .unwrap()
+            .remove(MCP_SERVER_KEY);
         write_config(&path, &config).unwrap();
 
         // Verify disconnected

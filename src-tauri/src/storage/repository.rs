@@ -1,6 +1,7 @@
 use super::database::Database;
 use super::models::{
-    AttentionInsight, CapturedContent, ContentType, ReportSection, UserFeedback, UserPreference, WeeklyReport,
+    AttentionInsight, CapturedContent, ContentForAnalysis, ContentType, ReportSection,
+    UserFeedback, UserPreference, WeeklyReport,
 };
 use rusqlite::params;
 use std::sync::Arc;
@@ -164,10 +165,7 @@ impl Repository {
     }
 
     /// Move a content item to the top by updating its captured_at to now.
-    pub fn touch_captured_at(
-        &self,
-        id: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn touch_captured_at(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
         let now = chrono::Utc::now().to_rfc3339();
         let conn = self
             .db
@@ -232,11 +230,7 @@ impl Repository {
     }
 
     /// Update the user_note for an existing content item.
-    pub fn update_user_note(
-        &self,
-        id: &str,
-        note: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update_user_note(&self, id: &str, note: &str) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -438,8 +432,8 @@ impl Repository {
 
         // Insert sections
         for section in &report.sections {
-            let content_ids_json = serde_json::to_string(&section.content_ids)
-                .unwrap_or_else(|_| "[]".to_string());
+            let content_ids_json =
+                serde_json::to_string(&section.content_ids).unwrap_or_else(|_| "[]".to_string());
 
             conn.execute(
                 "INSERT INTO report_sections (id, report_id, section_type, title, body, relevance_score, sort_order, content_ids)
@@ -503,10 +497,7 @@ impl Repository {
         // Load sections for this report
         let sections = self.get_sections_for_report_inner(&conn, &report.id)?;
 
-        Ok(Some(WeeklyReport {
-            sections,
-            ..report
-        }))
+        Ok(Some(WeeklyReport { sections, ..report }))
     }
 
     /// List all weekly reports (without full sections, just metadata).
@@ -587,10 +578,7 @@ impl Repository {
     // ========== User Feedback ==========
 
     /// Save user feedback (interested/dismissed/bookmarked) for a content or section.
-    pub fn save_feedback(
-        &self,
-        feedback: &UserFeedback,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_feedback(&self, feedback: &UserFeedback) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -648,9 +636,7 @@ impl Repository {
     }
 
     /// Get all user preferences ordered by weight descending.
-    pub fn get_all_preferences(
-        &self,
-    ) -> Result<Vec<UserPreference>, Box<dyn std::error::Error>> {
+    pub fn get_all_preferences(&self) -> Result<Vec<UserPreference>, Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -659,7 +645,7 @@ impl Repository {
 
         let mut stmt = conn.prepare(
             "SELECT id, topic, weight, occurrence_count, last_updated
-             FROM user_preferences ORDER BY weight DESC"
+             FROM user_preferences ORDER BY weight DESC",
         )?;
 
         let rows = stmt.query_map([], |row| {
@@ -677,68 +663,6 @@ impl Repository {
             results.push(row?);
         }
         Ok(results)
-    }
-
-    // ========== Chat Messages ==========
-
-    /// Save a chat message for a content item.
-    pub fn save_chat_message(
-        &self,
-        content_id: &str,
-        role: &str,
-        message: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let conn = self
-            .db
-            .conn
-            .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
-        let id = uuid::Uuid::new_v4().to_string();
-        conn.execute(
-            "INSERT INTO chat_messages (id, content_id, role, message) VALUES (?1, ?2, ?3, ?4)",
-            params![id, content_id, role, message],
-        )?;
-        Ok(())
-    }
-
-    /// Get all chat messages for a content item, ordered by creation time.
-    pub fn get_chat_messages(
-        &self,
-        content_id: &str,
-    ) -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
-        let conn = self
-            .db
-            .conn
-            .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
-        let mut stmt = conn.prepare(
-            "SELECT role, message FROM chat_messages WHERE content_id = ?1 ORDER BY created_at ASC",
-        )?;
-        let rows = stmt.query_map(params![content_id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
-        let mut results = Vec::new();
-        for row in rows {
-            results.push(row?);
-        }
-        Ok(results)
-    }
-
-    /// Delete all chat messages for a content item.
-    pub fn delete_chat_messages(
-        &self,
-        content_id: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let conn = self
-            .db
-            .conn
-            .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
-        conn.execute(
-            "DELETE FROM chat_messages WHERE content_id = ?1",
-            params![content_id],
-        )?;
-        Ok(())
     }
 
     // ========== Data Hub ==========
@@ -991,11 +915,7 @@ impl Repository {
     }
 
     /// Update a setting value by key.
-    pub fn update_setting(
-        &self,
-        key: &str,
-        value: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update_setting(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -1012,12 +932,12 @@ impl Repository {
 
     // ========== Attention Insights ==========
 
-    /// Get recent content for attention analysis (only needed fields).
+    /// Get recent content for attention analysis (rich fields for v2).
     pub fn get_recent_content_for_analysis(
         &self,
         days: i64,
         limit: usize,
-    ) -> Result<Vec<(String, Option<String>, Option<String>, String)>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<ContentForAnalysis>, Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -1025,25 +945,152 @@ impl Repository {
             .map_err(|e| format!("Lock error: {}", e))?;
         let cutoff = (chrono::Utc::now() - chrono::TimeDelta::days(days)).to_rfc3339();
         let mut stmt = conn.prepare(
-            "SELECT id, raw_text, source_url, captured_at
+            "SELECT id, raw_text, source_url, captured_at, summary, tags, user_note, source_app, content_type
              FROM captured_content
              WHERE is_deleted = 0 AND captured_at >= ?1
              ORDER BY captured_at DESC
              LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![cutoff, limit as i64], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, String>(3)?,
-            ))
+            Ok(ContentForAnalysis {
+                id: row.get(0)?,
+                raw_text: row.get(1)?,
+                source_url: row.get(2)?,
+                captured_at: row.get(3)?,
+                summary: row.get(4)?,
+                tags: row.get(5)?,
+                user_note: row.get(6)?,
+                source_app: row.get(7)?,
+                content_type: row.get(8)?,
+            })
         })?;
         let mut results = Vec::new();
         for row in rows {
             results.push(row?);
         }
         Ok(results)
+    }
+
+    /// Compute stats for radar v2 prompt from content items.
+    pub fn get_content_stats(items: &[ContentForAnalysis]) -> serde_json::Value {
+        use std::collections::HashMap;
+
+        let total = items.len();
+        if total == 0 {
+            return serde_json::json!({});
+        }
+
+        // Source distribution
+        let mut source_map: HashMap<&str, usize> = HashMap::new();
+        for item in items {
+            *source_map.entry(item.source_app.as_str()).or_default() += 1;
+        }
+        let source_count = source_map.len();
+        let sources: Vec<serde_json::Value> = {
+            let mut v: Vec<_> = source_map.iter().collect();
+            v.sort_by(|a, b| b.1.cmp(a.1));
+            v.iter()
+                .map(|(name, count)| serde_json::json!({"name": name, "count": count}))
+                .collect()
+        };
+
+        // Content type distribution
+        let mut content_type_map: HashMap<&str, usize> = HashMap::new();
+        for item in items {
+            *content_type_map
+                .entry(item.content_type.as_str())
+                .or_default() += 1;
+        }
+        let content_types: Vec<serde_json::Value> = {
+            let mut v: Vec<_> = content_type_map.iter().collect();
+            v.sort_by(|a, b| b.1.cmp(a.1));
+            v.iter()
+                .map(|(name, count)| serde_json::json!({"name": name, "count": count}))
+                .collect()
+        };
+
+        // Hour distribution
+        let (mut morning, mut afternoon, mut evening, mut midnight) = (0usize, 0, 0, 0);
+        for item in items {
+            // Try to parse hour from ISO timestamp
+            if let Some(t_pos) = item.captured_at.find('T') {
+                if let Ok(hour) = item.captured_at[t_pos + 1..]
+                    .get(..2)
+                    .unwrap_or("0")
+                    .parse::<u32>()
+                {
+                    match hour {
+                        6..=11 => morning += 1,
+                        12..=17 => afternoon += 1,
+                        18..=23 => evening += 1,
+                        _ => midnight += 1,
+                    }
+                }
+            }
+        }
+
+        // Active days + peak day
+        let mut day_counts: HashMap<String, usize> = HashMap::new();
+        for item in items {
+            let day = item.captured_at.get(..10).unwrap_or("").to_string();
+            if !day.is_empty() {
+                *day_counts.entry(day).or_default() += 1;
+            }
+        }
+        let day_keys: Vec<&str> = day_counts.keys().map(|s| s.as_str()).collect();
+        let min_day = day_keys.iter().min().copied().unwrap_or("");
+        let max_day = day_keys.iter().max().copied().unwrap_or("");
+        let active_days = day_counts.len();
+        let total_days = if min_day.len() >= 10 && max_day.len() >= 10 {
+            let start = chrono::NaiveDate::parse_from_str(&min_day[..10], "%Y-%m-%d").ok();
+            let end = chrono::NaiveDate::parse_from_str(&max_day[..10], "%Y-%m-%d").ok();
+            match (start, end) {
+                (Some(s), Some(e)) => ((e - s).num_days().max(0) + 1) as usize,
+                _ => active_days,
+            }
+        } else {
+            active_days
+        };
+
+        let peak_day = day_counts
+            .iter()
+            .max_by_key(|(_, c)| *c)
+            .map(|(d, c)| serde_json::json!({"date": d, "count": c}))
+            .unwrap_or(serde_json::json!(null));
+
+        let annotated = items
+            .iter()
+            .filter(|i| {
+                i.user_note.as_ref().is_some_and(|n| !n.is_empty())
+                    || i.tags.as_ref().is_some_and(|t| !t.is_empty())
+            })
+            .count();
+        let annotation_rate = ((annotated as f64 / total as f64) * 100.0).round();
+        let avg_per_active = if active_days > 0 {
+            total as f64 / active_days as f64
+        } else {
+            0.0
+        };
+
+        serde_json::json!({
+            "date_range": format!("{} 至 {}", min_day, max_day),
+            "total_items": total,
+            "active_days": active_days,
+            "total_days": total_days,
+            "annotated_items": annotated,
+            "annotation_rate": format!("{}%", annotation_rate as i64),
+            "source_count": source_count,
+            "sources": sources,
+            "content_types": content_types,
+            "peak_day": peak_day,
+            "avg_per_active_day": (avg_per_active * 10.0).round() / 10.0,
+            "hour_distribution": {
+                "morning": morning,
+                "afternoon": afternoon,
+                "evening": evening,
+                "midnight": midnight,
+            }
+        })
     }
 
     /// Save a new attention insight, marking all previous as not current.
@@ -1130,10 +1177,7 @@ impl Repository {
     }
 
     /// Check if any content was saved or updated after the given timestamp.
-    pub fn has_new_content_since(
-        &self,
-        since: &str,
-    ) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn has_new_content_since(&self, since: &str) -> Result<bool, Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -1179,7 +1223,43 @@ mod tests {
             updated_at: captured_at.to_string(),
             digested_at: None,
             digest_action: None,
+            summary: None,
+            tags: None,
         }
+    }
+
+    #[test]
+    fn test_get_content_stats_counts_total_days_inclusively() {
+        let items = vec![
+            ContentForAnalysis {
+                id: "1".to_string(),
+                raw_text: Some("a".to_string()),
+                source_url: None,
+                captured_at: "2026-03-21T10:00:00Z".to_string(),
+                summary: None,
+                tags: None,
+                user_note: Some("note".to_string()),
+                source_app: "WeChat".to_string(),
+                content_type: "text".to_string(),
+            },
+            ContentForAnalysis {
+                id: "2".to_string(),
+                raw_text: Some("b".to_string()),
+                source_url: None,
+                captured_at: "2026-04-05T09:00:00Z".to_string(),
+                summary: None,
+                tags: Some("tag".to_string()),
+                user_note: None,
+                source_app: "Chrome".to_string(),
+                content_type: "url".to_string(),
+            },
+        ];
+
+        let stats = Repository::get_content_stats(&items);
+
+        assert_eq!(stats["total_days"], 16);
+        assert_eq!(stats["source_count"], 2);
+        assert_eq!(stats["annotation_rate"], "100%");
     }
 
     #[test]

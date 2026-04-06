@@ -5,16 +5,14 @@ mod export;
 mod scheduler;
 mod storage;
 
-use commands::capture::AppState;
 use capture::detector::CaptureDetector;
+use commands::capture::AppState;
 use std::sync::Arc;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let db = Arc::new(
-        storage::database::Database::new().expect("Failed to initialize database"),
-    );
+    let db = Arc::new(storage::database::Database::new().expect("Failed to initialize database"));
 
     let detector = CaptureDetector::new();
 
@@ -23,7 +21,9 @@ pub fn run() {
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
                 .targets([
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: Some("xiaoyun".into()) }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("xiaoyun".into()),
+                    }),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
                 ])
                 .build(),
@@ -121,10 +121,6 @@ pub fn run() {
             commands::preferences::get_settings,
             commands::preferences::update_setting,
             commands::preferences::check_xreader_status,
-            commands::chat::chat_with_content,
-            commands::chat::get_chat_history,
-            commands::chat::save_chat_message,
-            commands::chat::clear_chat_history,
             commands::digest::get_digest_items,
             commands::digest::digest_item,
             commands::mcp::get_mcp_status,
@@ -240,11 +236,8 @@ fn save_clipboard_image(img: &arboard::ImageData) -> Option<String> {
     let id = uuid::Uuid::new_v4().to_string();
     let file_path = captures_dir.join(format!("{}.png", id));
 
-    let rgba_buf = image::RgbaImage::from_raw(
-        img.width as u32,
-        img.height as u32,
-        img.bytes.to_vec(),
-    )?;
+    let rgba_buf =
+        image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.to_vec())?;
 
     if rgba_buf.save(&file_path).is_ok() {
         Some(file_path.to_string_lossy().to_string())
@@ -285,19 +278,17 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("小云 — 智能信息助手")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| {
-            match event.id.as_ref() {
-                "show" => {
-                    show_main_window(app, None);
-                }
-                "report" => {
-                    show_main_window(app, Some("report"));
-                }
-                "quit" => {
-                    app.exit(0);
-                }
-                _ => {}
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => {
+                show_main_window(app, None);
             }
+            "report" => {
+                show_main_window(app, Some("report"));
+            }
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
         })
         .build(app)?;
 

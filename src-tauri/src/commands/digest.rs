@@ -11,9 +11,7 @@ pub struct DigestResponse {
 }
 
 #[tauri::command]
-pub async fn get_digest_items(
-    state: State<'_, AppState>,
-) -> Result<DigestResponse, String> {
+pub async fn get_digest_items(state: State<'_, AppState>) -> Result<DigestResponse, String> {
     let repo = Repository::new(state.db.clone());
     // Get undigested content from the last 7 days
     let items = repo
@@ -32,7 +30,12 @@ pub async fn digest_item(
     // Validate action
     match action.as_str() {
         "keep" | "archive" | "pin" => {}
-        _ => return Err(format!("Invalid digest action: {}. Must be keep, archive, or pin.", action)),
+        _ => {
+            return Err(format!(
+                "Invalid digest action: {}. Must be keep, archive, or pin.",
+                action
+            ))
+        }
     }
     let repo = Repository::new(state.db.clone());
     repo.update_digest_action(&id, &action)

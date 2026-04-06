@@ -107,7 +107,10 @@ fn generate_thumbnail(source_path: &str, id: &str) -> Result<String, String> {
 
 /// Internal auto-save function called directly from CaptureDetector.
 /// Does not require Tauri State — takes a Database reference directly.
-pub fn save_content_auto(db: &Arc<Database>, event: CaptureEvent) -> Result<CapturedContent, String> {
+pub fn save_content_auto(
+    db: &Arc<Database>,
+    event: CaptureEvent,
+) -> Result<CapturedContent, String> {
     let now = Utc::now().to_rfc3339();
     let id = uuid::Uuid::new_v4().to_string();
 
@@ -228,13 +231,23 @@ pub fn save_content_auto(db: &Arc<Database>, event: CaptureEvent) -> Result<Capt
         std::thread::spawn(move || {
             let repo = crate::storage::repository::Repository::new(db_clone);
             // Check if auto-sync is enabled
-            let enabled = repo.get_setting("datahub_export_enabled")
-                .ok().flatten().unwrap_or_default() == "true";
-            let auto_sync = repo.get_setting("datahub_auto_sync")
-                .ok().flatten().unwrap_or_else(|| "true".to_string()) == "true";
+            let enabled = repo
+                .get_setting("datahub_export_enabled")
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+                == "true";
+            let auto_sync = repo
+                .get_setting("datahub_auto_sync")
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "true".to_string())
+                == "true";
             if enabled && auto_sync {
-                let export_dir = repo.get_setting("datahub_export_dir")
-                    .ok().flatten()
+                let export_dir = repo
+                    .get_setting("datahub_export_dir")
+                    .ok()
+                    .flatten()
                     .unwrap_or_else(|| {
                         dirs::document_dir()
                             .unwrap_or_else(|| std::path::PathBuf::from("~/Documents"))
@@ -355,7 +368,10 @@ pub fn confirm_capture(
         Ok(c) => c,
         Err(e) if e.contains("Duplicate content") => {
             // Content was moved to top, emit refresh event
-            let _ = app.emit("content:url-fetched", serde_json::json!({"id": "", "reorder": true}));
+            let _ = app.emit(
+                "content:url-fetched",
+                serde_json::json!({"id": "", "reorder": true}),
+            );
             return Err("已移到最前面".to_string());
         }
         Err(e) => return Err(e),
@@ -384,7 +400,12 @@ pub fn confirm_capture(
     // AI summary for text content (images get it after OCR, URLs after fetch)
     if content.content_type.as_str() == "text" {
         if let Some(ref text) = content.raw_text {
-            spawn_summary_task(state.db.clone(), app.clone(), content.id.clone(), text.clone());
+            spawn_summary_task(
+                state.db.clone(),
+                app.clone(),
+                content.id.clone(),
+                text.clone(),
+            );
         }
     }
 
@@ -415,7 +436,9 @@ pub fn get_contents_by_ids(
 pub fn get_pending_capture(
     state: State<'_, AppState>,
 ) -> Result<Option<serde_json::Value>, String> {
-    let data = state.pending_capture.lock()
+    let data = state
+        .pending_capture
+        .lock()
         .map_err(|e| format!("Lock error: {}", e))?
         .take();
     Ok(data)
@@ -453,13 +476,15 @@ pub async fn retry_url_fetch(
     let repo = crate::storage::repository::Repository::new(db.clone());
 
     // Find the content record and get its source_url
-    let content = repo.get_all_content(500, 0)
+    let content = repo
+        .get_all_content(500, 0)
         .map_err(|e| format!("DB error: {}", e))?
         .into_iter()
         .find(|c| c.id == content_id)
         .ok_or_else(|| "Content not found".to_string())?;
 
-    let url = content.source_url
+    let url = content
+        .source_url
         .ok_or_else(|| "No source URL for this content".to_string())?;
 
     log::info!("Retrying URL fetch for {} (url={})", content_id, url);
@@ -474,8 +499,17 @@ pub async fn retry_url_fetch(
                 if let Err(e) = repo.update_content_for_url(&content_id, &result.content, &url) {
                     log::error!("Failed to update URL content on retry: {}", e);
                 } else {
-                    log::info!("URL retry succeeded for {}: {} chars", content_id, result.content.len());
-                    spawn_summary_task(db_for_summary, app.clone(), content_id.clone(), result.content.clone());
+                    log::info!(
+                        "URL retry succeeded for {}: {} chars",
+                        content_id,
+                        result.content.len()
+                    );
+                    spawn_summary_task(
+                        db_for_summary,
+                        app.clone(),
+                        content_id.clone(),
+                        result.content.clone(),
+                    );
                     let _ = app.emit(
                         "content:url-fetched",
                         serde_json::json!({
@@ -505,33 +539,35 @@ pub async fn retry_url_fetch(
 /// Run OCR on an image content item using macOS Vision framework.
 /// Saves the recognized text to raw_text and returns it.
 #[tauri::command]
-pub async fn ocr_image(
-    state: State<'_, AppState>,
-    content_id: String,
-) -> Result<String, String> {
+pub async fn ocr_image(state: State<'_, AppState>, content_id: String) -> Result<String, String> {
     let db = state.db.clone();
     let repo = crate::storage::repository::Repository::new(db.clone());
 
     // Find the content record
-    let content = repo.get_all_content(500, 0)
+    let content = repo
+        .get_all_content(500, 0)
         .map_err(|e| format!("DB error: {}", e))?
         .into_iter()
         .find(|c| c.id == content_id)
         .ok_or_else(|| "Content not found".to_string())?;
 
-    let image_path = content.image_path
+    let image_path = content
+        .image_path
         .ok_or_else(|| "No image path for this content".to_string())?;
 
-    log::info!("[OCR] Starting OCR for {} (path={})", content_id, image_path);
+    log::info!(
+        "[OCR] Starting OCR for {} (path={})",
+        content_id,
+        image_path
+    );
 
     // Run OCR in a blocking thread (Swift process is synchronous)
     let path_clone = image_path.clone();
-    let text = tokio::task::spawn_blocking(move || {
-        crate::capture::ocr::recognize_text(&path_clone)
-    })
-    .await
-    .map_err(|e| format!("OCR task error: {}", e))?
-    .map_err(|e| format!("OCR failed: {}", e))?;
+    let text =
+        tokio::task::spawn_blocking(move || crate::capture::ocr::recognize_text(&path_clone))
+            .await
+            .map_err(|e| format!("OCR task error: {}", e))?
+            .map_err(|e| format!("OCR failed: {}", e))?;
 
     // Save OCR text to database
     repo.update_raw_text(&content_id, &text)
@@ -542,16 +578,17 @@ pub async fn ocr_image(
 }
 
 /// Spawn auto-OCR for image content in the background.
-fn spawn_auto_ocr(
-    app: &tauri::AppHandle,
-    db: &Arc<Database>,
-    content: &CapturedContent,
-) {
+fn spawn_auto_ocr(app: &tauri::AppHandle, db: &Arc<Database>, content: &CapturedContent) {
     if content.content_type.as_str() != "image" {
         return;
     }
     // Skip if already has text (OCR already done)
-    if content.raw_text.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
+    if content
+        .raw_text
+        .as_ref()
+        .map(|t| !t.is_empty())
+        .unwrap_or(false)
+    {
         return;
     }
     let image_path = match &content.image_path {
@@ -577,8 +614,17 @@ fn spawn_auto_ocr(
                 if let Err(e) = repo.update_raw_text(&content_id, &text) {
                     log::error!("[OCR] Failed to save: {}", e);
                 } else {
-                    log::info!("[OCR] Auto-OCR done for {}: {} chars", content_id, text.len());
-                    spawn_summary_task(db_for_summary, app_clone.clone(), content_id.clone(), text.clone());
+                    log::info!(
+                        "[OCR] Auto-OCR done for {}: {} chars",
+                        content_id,
+                        text.len()
+                    );
+                    spawn_summary_task(
+                        db_for_summary,
+                        app_clone.clone(),
+                        content_id.clone(),
+                        text.clone(),
+                    );
                     let _ = app_clone.emit(
                         "content:ocr-done",
                         serde_json::json!({
@@ -599,11 +645,7 @@ fn spawn_auto_ocr(
 }
 
 /// Spawn auto URL fetch for URL content in the background.
-fn spawn_auto_url_fetch(
-    app: &tauri::AppHandle,
-    db: &Arc<Database>,
-    content: &CapturedContent,
-) {
+fn spawn_auto_url_fetch(app: &tauri::AppHandle, db: &Arc<Database>, content: &CapturedContent) {
     if content.content_type.as_str() != "url" {
         return;
     }
@@ -635,8 +677,17 @@ fn spawn_auto_url_fetch(
                 if let Err(e) = repo.update_content_for_url(&content_id, &result.content, &url) {
                     log::error!("Failed to update URL content: {}", e);
                 } else {
-                    log::info!("URL fetched for {}: {} chars", content_id, result.content.len());
-                    spawn_summary_task(db_for_summary, app_clone.clone(), content_id.clone(), result.content.clone());
+                    log::info!(
+                        "URL fetched for {}: {} chars",
+                        content_id,
+                        result.content.len()
+                    );
+                    spawn_summary_task(
+                        db_for_summary,
+                        app_clone.clone(),
+                        content_id.clone(),
+                        result.content.clone(),
+                    );
                     let _ = app_clone.emit(
                         "content:url-fetched",
                         serde_json::json!({
@@ -663,7 +714,12 @@ fn spawn_auto_url_fetch(
 
 /// Spawn an async task to generate an AI summary for a content item.
 /// Silently skips if no API key configured or text too short.
-pub fn spawn_summary_task(db: Arc<Database>, app: tauri::AppHandle, content_id: String, text: String) {
+pub fn spawn_summary_task(
+    db: Arc<Database>,
+    app: tauri::AppHandle,
+    content_id: String,
+    text: String,
+) {
     // At least 2 Chinese characters (~6 bytes) to be worth summarizing
     if text.trim().len() < 6 {
         return;
@@ -671,18 +727,27 @@ pub fn spawn_summary_task(db: Arc<Database>, app: tauri::AppHandle, content_id: 
     tauri::async_runtime::spawn(async move {
         let repo = crate::storage::repository::Repository::new(db.clone());
 
-        let provider_str = repo.get_setting("ai_provider").ok().flatten()
+        let provider_str = repo
+            .get_setting("ai_provider")
+            .ok()
+            .flatten()
             .unwrap_or_else(|| "anthropic".to_string());
 
         // Load per-provider API key, fall back to legacy key
         let provider_key = format!("ai_api_key_{}", provider_str);
-        let api_key = repo.get_setting(&provider_key).ok().flatten()
+        let api_key = repo
+            .get_setting(&provider_key)
+            .ok()
+            .flatten()
             .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
             .unwrap_or_default();
         if api_key.is_empty() {
             return;
         }
-        let model = repo.get_setting("ai_model").ok().flatten()
+        let model = repo
+            .get_setting("ai_model")
+            .ok()
+            .flatten()
             .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
 
         // 发送完整内容给 AI（上限 5000 字，覆盖绝大多数文章）
@@ -705,14 +770,21 @@ pub fn spawn_summary_task(db: Arc<Database>, app: tauri::AppHandle, content_id: 
         let provider = crate::ai::attention_analyzer::AnalysisProvider::from_str(&provider_str);
         match crate::ai::attention_analyzer::call_analysis_api(
             &provider, &api_key, &model, "", &prompt, 512,
-        ).await {
+        )
+        .await
+        {
             Ok(raw) => {
                 let (summary, tags) = extract_summary_and_tags(&raw);
                 if !summary.is_empty() {
                     let tags_str = tags.join(",");
                     let _ = repo.update_summary_and_tags(&content_id, &summary, &tags_str);
                     let _ = app.emit("content-summary-ready", &content_id);
-                    log::info!("Summary generated for {}: [{}] {}", content_id, tags_str, summary);
+                    log::info!(
+                        "Summary generated for {}: [{}] {}",
+                        content_id,
+                        tags_str,
+                        summary
+                    );
                 }
             }
             Err(e) => {
@@ -728,7 +800,8 @@ pub fn spawn_summary_task(db: Arc<Database>, app: tauri::AppHandle, content_id: 
 fn extract_summary_and_tags(raw: &str) -> (String, Vec<String>) {
     let trimmed = raw.trim();
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        let summary = v.get("summary")
+        let summary = v
+            .get("summary")
             .and_then(|v| v.as_str())
             .or_else(|| v.get("text").and_then(|v| v.as_str()))
             .or_else(|| v.get("content").and_then(|v| v.as_str()))
@@ -736,7 +809,8 @@ fn extract_summary_and_tags(raw: &str) -> (String, Vec<String>) {
             .trim()
             .to_string();
 
-        let tags = v.get("tags")
+        let tags = v
+            .get("tags")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
@@ -770,7 +844,10 @@ fn extract_summary_and_tags(raw: &str) -> (String, Vec<String>) {
         }
     }
     // Not JSON — treat as plain text summary
-    let stripped = trimmed.trim_matches('"').trim_matches('「').trim_matches('」');
+    let stripped = trimmed
+        .trim_matches('"')
+        .trim_matches('「')
+        .trim_matches('」');
     (stripped.trim().to_string(), vec![])
 }
 
@@ -788,7 +865,11 @@ fn hide_bubble_window(app: &tauri::AppHandle) {
 pub fn debug_log(message: String) {
     let path = std::env::temp_dir().join("xiaoyun_debug.log");
     use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
         let now = chrono::Local::now().format("%H:%M:%S%.3f");
         let _ = writeln!(f, "[{}] {}", now, message);
     }
@@ -805,6 +886,12 @@ pub async fn test_ai_connection(
 ) -> Result<String, String> {
     let p = crate::ai::attention_analyzer::AnalysisProvider::from_str(&provider);
     crate::ai::attention_analyzer::call_analysis_api(
-        &p, &api_key, &model, "", "回复\"连接成功\"这四个字，不要说其他内容。", 64,
-    ).await
+        &p,
+        &api_key,
+        &model,
+        "",
+        "回复\"连接成功\"这四个字，不要说其他内容。",
+        64,
+    )
+    .await
 }

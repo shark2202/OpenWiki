@@ -14,17 +14,19 @@ pub struct RadarStatus {
 
 /// Get the current attention radar status and insight.
 #[tauri::command]
-pub fn get_attention_insights(
-    state: State<'_, AppState>,
-) -> Result<RadarStatus, String> {
+pub fn get_attention_insights(state: State<'_, AppState>) -> Result<RadarStatus, String> {
     let repo = Repository::new(state.db.clone());
 
     // 1. Check if API key is configured (per-provider, with legacy fallback)
-    let provider_str_check = repo.get_setting("ai_provider").ok().flatten()
+    let provider_str_check = repo
+        .get_setting("ai_provider")
+        .ok()
+        .flatten()
         .unwrap_or_else(|| "anthropic".to_string());
     let api_key = repo
         .get_setting(&format!("ai_api_key_{}", provider_str_check))
-        .ok().flatten()
+        .ok()
+        .flatten()
         .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
         .unwrap_or_default();
 
@@ -118,7 +120,11 @@ pub fn get_attention_insights(
             let elapsed_days = (chrono::Utc::now() - analyzed_time).num_days();
             let interval_expired = elapsed_days >= interval_days;
 
-            let status = if has_new && interval_expired { "stale" } else { "fresh" };
+            let status = if has_new && interval_expired {
+                "stale"
+            } else {
+                "fresh"
+            };
 
             Ok(RadarStatus {
                 status: status.to_string(),
@@ -130,6 +136,8 @@ pub fn get_attention_insights(
 }
 
 /// Trigger a new attention analysis in the background.
+/// Uses v3 RadarReport for DashScope (SSE streaming + thinking),
+/// falls back to v2 BriefingAnalysis for other providers.
 #[tauri::command]
 pub async fn trigger_attention_analysis(
     app: AppHandle,
@@ -147,7 +155,7 @@ pub async fn trigger_attention_analysis(
 
     if let Some(ref insight) = current {
         if insight.status == "analyzing" {
-            return Ok(()); // Already in progress, skip
+            return Ok(());
         }
     }
 
@@ -159,7 +167,8 @@ pub async fn trigger_attention_analysis(
 
     let api_key = repo
         .get_setting(&format!("ai_api_key_{}", provider_str))
-        .ok().flatten()
+        .ok()
+        .flatten()
         .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
         .unwrap_or_default();
 
@@ -182,13 +191,7 @@ pub async fn trigger_attention_analysis(
     }
 
     let item_count = items.len();
-
-    // Build id_map: index -> content_id
-    let id_map: std::collections::HashMap<usize, String> = items
-        .iter()
-        .enumerate()
-        .map(|(i, (id, _, _, _))| (i, id.clone()))
-        .collect();
+    let provider = AnalysisProvider::from_str(&provider_str);
 
     // 4. Create "analyzing" record
     let now = chrono::Utc::now();
@@ -207,81 +210,150 @@ pub async fn trigger_attention_analysis(
         )
         .map_err(|e| format!("创建分析记录失败: {}", e))?;
 
-    // 5. Build prompt
-    let (system_prompt, user_message) = attention_analyzer::build_prompt(&items);
-    let provider = AnalysisProvider::from_str(&provider_str);
+    // 5. Build prompt — use v2 (RadarReport) for DashScope, old prompt for others
+    let is_dashscope = matches!(provider, AnalysisProvider::DashScope);
 
-    // 6. Spawn background task
-    tauri::async_runtime::spawn(async move {
-        let repo = Repository::new(db.clone());
+    if is_dashscope {
+        // V3 flow: build_prompt_v2 + SSE streaming
+        let stats = Repository::get_content_stats(&items);
+        let (system_prompt, user_message) = attention_analyzer::build_prompt_v2(&items, &stats);
 
-        match attention_analyzer::call_analysis_api(
-            &provider,
-            &api_key,
-            &model,
-            &system_prompt,
-            &user_message,
-            8192,
-        )
-        .await
-        {
-            Ok(raw_response) => {
-                // Validate and parse the response
-                match attention_analyzer::validate_analysis(&raw_response, item_count) {
-                    Ok(analysis) => {
-                        // Build response JSON: BriefingAnalysis fields + id_map
-                        let response = serde_json::json!({
-                            "format_version": analysis.format_version,
-                            "topics": analysis.topics,
-                            "meta": analysis.meta,
-                            "id_map": id_map,
-                        });
-                        let json_str = response.to_string();
+        tauri::async_runtime::spawn(async move {
+            let repo = Repository::new(db.clone());
+            let _ = app.emit("attention-analysis-progress", "thinking");
 
-                        if let Err(e) = repo.update_insight_status(
-                            insight_id,
-                            "complete",
-                            Some(&json_str),
-                            None,
-                        ) {
-                            log::error!("保存分析结果失败: {}", e);
-                            let _ = repo.update_insight_status(
+            match attention_analyzer::call_dashscope_streaming(
+                &api_key,
+                &model,
+                &system_prompt,
+                &user_message,
+                8192,
+            )
+            .await
+            {
+                Ok(raw_response) => {
+                    let _ = app.emit("attention-analysis-progress", "generating");
+
+                    match attention_analyzer::validate_radar_report(&raw_response) {
+                        Ok(report) => {
+                            let json_str = serde_json::to_string(&report).unwrap_or_default();
+
+                            if let Err(e) = repo.update_insight_status(
                                 insight_id,
-                                "error",
+                                "complete",
+                                Some(&json_str),
                                 None,
-                                Some(&format!("保存失败: {}", e)),
-                            );
-                            let _ = app.emit("attention-analysis-complete", "error");
-                            return;
-                        }
+                            ) {
+                                log::error!("保存 RadarReport 失败: {}", e);
+                                let _ = repo.update_insight_status(
+                                    insight_id,
+                                    "error",
+                                    None,
+                                    Some(&format!("保存失败: {}", e)),
+                                );
+                                let _ = app.emit("attention-analysis-complete", "error");
+                                return;
+                            }
 
-                        log::info!("注意力分析完成，共分析 {} 条内容", item_count);
-                        let _ = app.emit("attention-analysis-complete", "complete");
-                    }
-                    Err(e) => {
-                        log::error!("分析结果验证失败: {}", e);
-                        let _ = repo.update_insight_status(
-                            insight_id,
-                            "error",
-                            None,
-                            Some(&e),
-                        );
-                        let _ = app.emit("attention-analysis-complete", "error");
+                            log::info!("雷达 v2 分析完成，共分析 {} 条内容", item_count);
+                            let _ = app.emit("attention-analysis-complete", "complete");
+                        }
+                        Err(e) => {
+                            log::error!("RadarReport 验证失败: {}", e);
+                            let _ = repo.update_insight_status(insight_id, "error", None, Some(&e));
+                            let _ = app.emit("attention-analysis-complete", "error");
+                        }
                     }
                 }
+                Err(e) => {
+                    log::error!("DashScope SSE 调用失败: {}", e);
+                    let _ = repo.update_insight_status(insight_id, "error", None, Some(&e));
+                    let _ = app.emit("attention-analysis-complete", "error");
+                }
             }
-            Err(e) => {
-                log::error!("AI API 调用失败: {}", e);
-                let _ = repo.update_insight_status(
-                    insight_id,
-                    "error",
-                    None,
-                    Some(&e),
-                );
-                let _ = app.emit("attention-analysis-complete", "error");
+        });
+    } else {
+        // V2 flow (legacy): build old prompt + non-streaming call
+        // Convert ContentForAnalysis to old tuple format for build_prompt
+        let old_items: Vec<(String, Option<String>, Option<String>, String)> = items
+            .iter()
+            .map(|i| {
+                (
+                    i.id.clone(),
+                    i.raw_text.clone(),
+                    i.source_url.clone(),
+                    i.captured_at.clone(),
+                )
+            })
+            .collect();
+
+        let id_map: std::collections::HashMap<usize, String> = old_items
+            .iter()
+            .enumerate()
+            .map(|(i, (id, _, _, _))| (i, id.clone()))
+            .collect();
+
+        let (system_prompt, user_message) = attention_analyzer::build_prompt(&old_items);
+
+        tauri::async_runtime::spawn(async move {
+            let repo = Repository::new(db.clone());
+
+            match attention_analyzer::call_analysis_api(
+                &provider,
+                &api_key,
+                &model,
+                &system_prompt,
+                &user_message,
+                8192,
+            )
+            .await
+            {
+                Ok(raw_response) => {
+                    match attention_analyzer::validate_analysis(&raw_response, item_count) {
+                        Ok(analysis) => {
+                            let response = serde_json::json!({
+                                "format_version": analysis.format_version,
+                                "topics": analysis.topics,
+                                "meta": analysis.meta,
+                                "id_map": id_map,
+                            });
+                            let json_str = response.to_string();
+
+                            if let Err(e) = repo.update_insight_status(
+                                insight_id,
+                                "complete",
+                                Some(&json_str),
+                                None,
+                            ) {
+                                log::error!("保存分析结果失败: {}", e);
+                                let _ = repo.update_insight_status(
+                                    insight_id,
+                                    "error",
+                                    None,
+                                    Some(&format!("保存失败: {}", e)),
+                                );
+                                let _ = app.emit("attention-analysis-complete", "error");
+                                return;
+                            }
+
+                            log::info!("注意力分析完成，共分析 {} 条内容", item_count);
+                            let _ = app.emit("attention-analysis-complete", "complete");
+                        }
+                        Err(e) => {
+                            log::error!("分析结果验证失败: {}", e);
+                            let _ = repo.update_insight_status(insight_id, "error", None, Some(&e));
+                            let _ = app.emit("attention-analysis-complete", "error");
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("AI API 调用失败: {}", e);
+                    let _ = repo.update_insight_status(insight_id, "error", None, Some(&e));
+                    let _ = app.emit("attention-analysis-complete", "error");
+                }
             }
-        }
-    });
+        });
+    }
 
     Ok(())
 }

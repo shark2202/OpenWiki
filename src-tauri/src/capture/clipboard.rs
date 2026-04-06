@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, Ordering},
+    Arc,
 };
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -22,11 +22,8 @@ fn save_clipboard_image_to_disk(img: &arboard::ImageData) -> Option<String> {
     let file_path = captures_dir.join(format!("{}.png", id));
 
     // arboard gives us RGBA pixel data
-    let rgba_buf = image::RgbaImage::from_raw(
-        img.width as u32,
-        img.height as u32,
-        img.bytes.to_vec(),
-    );
+    let rgba_buf =
+        image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.to_vec());
 
     match rgba_buf {
         Some(buffer) => {
@@ -86,7 +83,10 @@ impl ClipboardWatcher {
         std::thread::spawn(move || {
             let mut last_content_hash: Option<String> = None;
 
-            eprintln!("[xiaoyun] Clipboard watcher thread started ({}ms)", interval);
+            eprintln!(
+                "[xiaoyun] Clipboard watcher thread started ({}ms)",
+                interval
+            );
             log::info!(
                 "Clipboard watcher started with {}ms polling interval",
                 interval
@@ -107,10 +107,8 @@ impl ClipboardWatcher {
                             last_content_hash = Some(hash);
                             let source_app = detect_frontmost_app();
 
-                            let preview = format!(
-                                "Image {}x{} from clipboard",
-                                img.width, img.height
-                            );
+                            let preview =
+                                format!("Image {}x{} from clipboard", img.width, img.height);
 
                             // Save clipboard image pixels to disk as PNG
                             let image_path = save_clipboard_image_to_disk(&img);
@@ -153,7 +151,10 @@ impl ClipboardWatcher {
                             };
 
                             if is_new {
-                                eprintln!("[xiaoyun] New clipboard text detected: {} chars", text.len());
+                                eprintln!(
+                                    "[xiaoyun] New clipboard text detected: {} chars",
+                                    text.len()
+                                );
                                 last_content_hash = Some(hash);
                                 let source_app = detect_frontmost_app();
 
@@ -167,12 +168,14 @@ impl ClipboardWatcher {
                                 // Cap raw_text sent via IPC to avoid crashes with very large clipboard content.
                                 // The full text is still used for hashing/dedup; storage will use this capped version.
                                 const MAX_RAW_TEXT_CHARS: usize = 50_000;
-                                let raw_text_for_event = if text.chars().count() > MAX_RAW_TEXT_CHARS {
-                                    let truncated: String = text.chars().take(MAX_RAW_TEXT_CHARS).collect();
-                                    truncated
-                                } else {
-                                    text.clone()
-                                };
+                                let raw_text_for_event =
+                                    if text.chars().count() > MAX_RAW_TEXT_CHARS {
+                                        let truncated: String =
+                                            text.chars().take(MAX_RAW_TEXT_CHARS).collect();
+                                        truncated
+                                    } else {
+                                        text.clone()
+                                    };
 
                                 let event = serde_json::json!({
                                     "content_type": "text",

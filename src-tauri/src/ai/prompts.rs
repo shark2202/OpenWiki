@@ -137,28 +137,6 @@ pub fn topic_clustering_prompt(content_list: &str) -> String {
     )
 }
 
-/// System prompt for the content chat feature.
-/// The AI acts as a reading assistant that discusses article content with the user.
-pub fn content_chat_system_prompt(article_text: &str) -> String {
-    format!(
-        r#"你是「小云」的阅读助手。用户正在阅读一篇文章，你需要基于文章内容和用户的问题进行对话。
-
-## 你的职责：
-- 回答用户关于文章内容的任何问题
-- 帮助用户总结、分析、提取关键信息
-- 用简洁清晰的中文回答
-- 如果用户的问题超出文章内容范围，可以结合你的知识回答，但要说明哪些是文章中的信息、哪些是你的补充
-
-## 文章内容：
-{article_text}
-
-## 回复风格：
-- 简洁有条理，避免冗长
-- 重要信息可用要点列出
-- 不要重复用户的问题"#
-    )
-}
-
 /// Format a single content item for inclusion in the weekly report prompt.
 pub fn format_content_item(
     id: &str,
@@ -167,7 +145,5 @@ pub fn format_content_item(
     captured_at: &str,
     text_preview: &str,
 ) -> String {
-    format!(
-        "- [ID: {id}] [{content_type}] 来自「{source_app}」({captured_at}): {text_preview}"
-    )
+    format!("- [ID: {id}] [{content_type}] 来自「{source_app}」({captured_at}): {text_preview}")
 }

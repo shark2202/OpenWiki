@@ -5,7 +5,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import type { CapturedContent } from "../../types/content";
 import { deleteContent, retryUrlFetch, ocrImage } from "../../services/storageService";
-import { chatWithContent, getChatHistory, saveChatMessage, clearChatHistory, type ChatMessage } from "../../services/chatService";
+
 import { useContentStore } from "../../stores/contentStore";
 import { useDataHubStore } from "../../stores/dataHubStore";
 import { ImagePreview } from "./ImagePreview";
@@ -341,16 +341,6 @@ export const ContentCard = forwardRef<HTMLDivElement, ContentCardProps>(
             </div>
 
             <div className="flex items-center gap-1">
-              {!isUrlContent && (content.raw_text || ocrText) && (
-                <button
-                  onClick={() => setTextExpanded(true)}
-                  className="px-2 py-1 rounded-md text-[11px] text-gray-400 dark:text-slate-500
-                             hover:text-orange-600 dark:hover:text-orange-400
-                             hover:bg-orange-500/10 dark:hover:bg-orange-500/15 transition-all"
-                >
-                  AI 对话
-                </button>
-              )}
               {hasSourceUrl && (
                 <button
                   onClick={() => content.source_url && open(content.source_url)}
@@ -527,7 +517,7 @@ function FormattedText({ text }: { text: string }) {
 }
 
 /* ================================================================
-   FULL TEXT OVERLAY — with optional AI chat split panel
+   FULL TEXT OVERLAY
    ================================================================ */
 
 function AnalyzingChip() {
@@ -580,82 +570,11 @@ export function FullTextOverlay({
   const isUrl = content.content_type === "url";
   // For images, prefer ocrText over content.raw_text
   const displayText = isImage ? (ocrText || content.raw_text) : content.raw_text;
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Load chat history from database when chat opens
-  useEffect(() => {
-    if (chatOpen && !historyLoaded) {
-      getChatHistory(content.id).then((history) => {
-        if (history.length > 0) {
-          setMessages(history);
-        }
-        setHistoryLoaded(true);
-      }).catch((e) => {
-        console.error("Failed to load chat history:", e);
-        setHistoryLoaded(true);
-      });
-    }
-  }, [chatOpen, historyLoaded, content.id]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Focus input when chat opens
-  useEffect(() => {
-    if (chatOpen) {
-      setTimeout(() => inputRef.current?.focus(), 300);
-    }
-  }, [chatOpen]);
-
   // Lock background scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
   }, []);
-
-  const handleSend = async (text?: string) => {
-    const input = (text ?? inputValue).trim();
-    if (!input || isLoading || !displayText) return;
-
-    const userMsg: ChatMessage = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
-    setInputValue("");
-    setIsLoading(true);
-
-    // Save user message to database
-    saveChatMessage(content.id, "user", input).catch(console.error);
-
-    try {
-      const reply = await chatWithContent(displayText, messages, input);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-      // Save AI reply to database
-      saveChatMessage(content.id, "assistant", reply).catch(console.error);
-    } catch (e) {
-      const errorMsg = `AI 回复失败: ${e}`;
-      setMessages((prev) => [...prev, { role: "assistant", content: errorMsg }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const quickQuestions = isImage
-    ? ["描述这张图片的内容", "提取图片中的关键信息", "总结图片传达的要点"]
-    : ["总结这篇文章的要点", "这篇文章的核心观点是什么？", "提取关键信息"];
 
   return (
     <motion.div
@@ -676,7 +595,7 @@ export function FullTextOverlay({
         transition={{ duration: 0.2, ease: "easeOut" }}
         layout
         className={`relative rounded-2xl overflow-hidden glass-elevated flex flex-col
-                    ${chatOpen ? "w-full max-w-5xl" : "w-full max-w-2xl"} max-h-[85vh]`}
+                    w-full max-w-2xl max-h-[85vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top accent line */}
@@ -705,20 +624,6 @@ export function FullTextOverlay({
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
-            {/* AI Chat toggle */}
-            <button
-              onClick={() => setChatOpen(!chatOpen)}
-              className={`h-8 px-3 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5
-                ${chatOpen
-                  ? "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                  : "text-gray-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/8 dark:hover:bg-emerald-500/10"
-                }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-              </svg>
-              AI 对话
-            </button>
             {content.source_url && (
               <button
                 onClick={() => open(content.source_url!)}
@@ -772,10 +677,9 @@ export function FullTextOverlay({
         {/* Divider */}
         <div className="mx-6 h-[1px] bg-gradient-to-r from-transparent via-gray-200/80 dark:via-white/[0.06] to-transparent flex-shrink-0" />
 
-        {/* Body — split layout when chat is open */}
-        <div className={`flex-1 min-h-0 flex ${chatOpen ? "flex-row" : "flex-col"}`}>
-          {/* Content panel (left side) */}
-          <div className={`overflow-y-auto ${chatOpen ? "w-[55%] border-r border-gray-200/40 dark:border-white/[0.06]" : "w-full"}`}>
+        {/* Body */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="overflow-y-auto w-full">
             <div className="px-6 py-5">
               {/* Image display */}
               {isImage && imageSrc && (
@@ -807,136 +711,6 @@ export function FullTextOverlay({
             </div>
           </div>
 
-          {/* AI Chat panel */}
-          <AnimatePresence>
-            {chatOpen && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: "45%", opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.25, ease: "easeInOut" }}
-                className="flex flex-col min-w-0 overflow-hidden"
-              >
-                {/* Chat header with clear button */}
-                {messages.length > 0 && (
-                  <div className="flex items-center justify-between px-4 pt-3 pb-1 flex-shrink-0">
-                    <span className="text-[11px] text-gray-400 dark:text-slate-500">
-                      {messages.length} 条对话
-                    </span>
-                    <button
-                      onClick={async () => {
-                        await clearChatHistory(content.id).catch(console.error);
-                        setMessages([]);
-                      }}
-                      className="text-[11px] text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                    >
-                      清空记录
-                    </button>
-                  </div>
-                )}
-                {/* Chat messages */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-                  {messages.length === 0 && !isLoading && (
-                    <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                      <div className="w-12 h-12 rounded-2xl glass flex items-center justify-center mb-3">
-                        <svg className="w-5 h-5 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                        </svg>
-                      </div>
-                      <p className="text-[13px] font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        AI 阅读助手
-                      </p>
-                      <p className="text-[11px] text-gray-400 dark:text-slate-500 mb-4">
-                        针对这篇文章提问，AI 会基于内容回答
-                      </p>
-                      {/* Quick questions */}
-                      <div className="flex flex-col gap-1.5 w-full">
-                        {quickQuestions.map((q) => (
-                          <button
-                            key={q}
-                            onClick={() => handleSend(q)}
-                            className="w-full px-3 py-2 rounded-xl glass text-left text-[12px]
-                                       text-gray-600 dark:text-gray-300
-                                       hover:bg-white/60 dark:hover:bg-white/[0.04]
-                                       transition-colors cursor-pointer"
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {messages.map((msg, i) => (
-                    <div
-                      key={i}
-                      className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed whitespace-pre-wrap
-                          ${msg.role === "user"
-                            ? "bg-orange-500 text-white rounded-br-md"
-                            : "glass text-gray-700 dark:text-gray-200 rounded-bl-md"
-                          }`}
-                      >
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))}
-
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="glass px-3.5 py-2.5 rounded-2xl rounded-bl-md">
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce [animation-delay:0ms]" />
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce [animation-delay:150ms]" />
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-slate-500 animate-bounce [animation-delay:300ms]" />
-                          </div>
-                          <span className="text-[11px] text-gray-400 dark:text-slate-500 ml-1">思考中...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Input area */}
-                <div className="flex-shrink-0 px-4 pb-4 pt-2">
-                  <div className="flex items-end gap-2 glass rounded-xl p-2">
-                    <textarea
-                      ref={inputRef}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="输入你的问题..."
-                      rows={1}
-                      className="flex-1 bg-transparent text-[13px] text-gray-700 dark:text-gray-200
-                                 placeholder:text-gray-400 dark:placeholder:text-slate-500
-                                 resize-none outline-none min-h-[32px] max-h-[80px] py-1 px-1"
-                      style={{ height: "auto", overflow: "auto" }}
-                    />
-                    <button
-                      onClick={() => handleSend()}
-                      disabled={!inputValue.trim() || isLoading}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
-                                 bg-orange-500 text-white hover:bg-orange-600
-                                 disabled:opacity-30 disabled:cursor-not-allowed
-                                 transition-all cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                      </svg>
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-gray-300 dark:text-slate-600 mt-1.5 text-center">
-                    Enter 发送 · Shift+Enter 换行
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </motion.div>
     </motion.div>

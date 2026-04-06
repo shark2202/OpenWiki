@@ -52,7 +52,9 @@ impl UrlReader {
         // Also translate title if needed
         let title = if let Some(ref t) = raw.title {
             if needs_translation(t) {
-                let translated = translate_chunk(&self.http_client, t).await.unwrap_or_else(|_| t.clone());
+                let translated = translate_chunk(&self.http_client, t)
+                    .await
+                    .unwrap_or_else(|_| t.clone());
                 Some(translated)
             } else {
                 raw.title
@@ -124,10 +126,9 @@ impl UrlReader {
             Err(jina_err) => {
                 log::warn!("[Jina] 失败 ({}), 尝试直接抓取", jina_err);
                 // Fallback: direct HTML fetch + tag stripping
-                self.fetch_direct_html(clean_url).await
-                    .map_err(|html_err| {
-                        format!("Jina: {} | Direct: {}", jina_err, html_err)
-                    })
+                self.fetch_direct_html(clean_url)
+                    .await
+                    .map_err(|html_err| format!("Jina: {} | Direct: {}", jina_err, html_err))
             }
         }
     }
@@ -143,16 +144,30 @@ impl UrlReader {
 
         if content.len() >= MIN_CONTENT_LENGTH {
             let markdown = format_with_title(&title, &truncate_content(content));
-            log::info!("[WeChat] 成功 (js_content): {} chars, title={:?}", markdown.len(), title);
-            return Ok(UrlReadResult { content: markdown, title });
+            log::info!(
+                "[WeChat] 成功 (js_content): {} chars, title={:?}",
+                markdown.len(),
+                title
+            );
+            return Ok(UrlReadResult {
+                content: markdown,
+                title,
+            });
         }
 
         // Try content_noencode (newer format: content stored in JS variable)
         let noencode = extract_wechat_content_noencode(&html);
         if noencode.len() >= MIN_CONTENT_LENGTH {
             let markdown = format_with_title(&title, &truncate_content(noencode));
-            log::info!("[WeChat] 成功 (content_noencode): {} chars, title={:?}", markdown.len(), title);
-            return Ok(UrlReadResult { content: markdown, title });
+            log::info!(
+                "[WeChat] 成功 (content_noencode): {} chars, title={:?}",
+                markdown.len(),
+                title
+            );
+            return Ok(UrlReadResult {
+                content: markdown,
+                title,
+            });
         }
 
         // Fallback: og:description (for appmsg_type=9 short articles, shares, etc.)
@@ -161,8 +176,15 @@ impl UrlReader {
             if desc.len() >= MIN_CONTENT_LENGTH {
                 let decoded = desc.replace("\\x0a", "\n").replace("\\x26amp;amp;", "&");
                 let markdown = format_with_title(&title, &truncate_content(decoded));
-                log::info!("[WeChat] 成功 (og:description): {} chars, title={:?}", markdown.len(), title);
-                return Ok(UrlReadResult { content: markdown, title });
+                log::info!(
+                    "[WeChat] 成功 (og:description): {} chars, title={:?}",
+                    markdown.len(),
+                    title
+                );
+                return Ok(UrlReadResult {
+                    content: markdown,
+                    title,
+                });
             }
         }
 
@@ -170,7 +192,10 @@ impl UrlReader {
         log::info!("[WeChat] HTML 抓取失败, 尝试 Jina Reader");
         if let Ok(jina_result) = self.fetch_via_jina(url).await {
             if jina_result.content.len() >= MIN_CONTENT_LENGTH {
-                log::info!("[WeChat] 成功 (Jina fallback): {} chars", jina_result.content.len());
+                log::info!(
+                    "[WeChat] 成功 (Jina fallback): {} chars",
+                    jina_result.content.len()
+                );
                 return Ok(jina_result);
             }
         }
@@ -186,27 +211,43 @@ impl UrlReader {
             }
         }
 
-        Err(format!("WeChat content too short ({} chars)", content.len()))
+        Err(format!(
+            "WeChat content too short ({} chars)",
+            content.len()
+        ))
     }
 
     // ─── X/Twitter ─────────────────────────────────────────────────
 
     async fn fetch_twitter(&self, url: &str) -> Result<UrlReadResult, String> {
-        let (user, tweet_id) = parse_twitter_url(url)
-            .ok_or_else(|| format!("Cannot parse Twitter URL: {}", url))?;
+        let (user, tweet_id) =
+            parse_twitter_url(url).ok_or_else(|| format!("Cannot parse Twitter URL: {}", url))?;
 
         let api_url = format!("https://api.fxtwitter.com/{}/status/{}", user, tweet_id);
         let json: serde_json::Value = self.get_json(&api_url).await?;
 
         let tweet = json.get("tweet").ok_or("fxtwitter: no tweet")?;
-        let author_name = tweet.pointer("/author/name").and_then(|v| v.as_str()).unwrap_or("");
-        let author_handle = tweet.pointer("/author/screen_name").and_then(|v| v.as_str()).unwrap_or("");
+        let author_name = tweet
+            .pointer("/author/name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let author_handle = tweet
+            .pointer("/author/screen_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         let (title, body) = if let Some(article) = tweet.get("article") {
-            let t = article.get("title").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let t = article
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             (t, extract_twitter_article_content(article))
         } else {
-            let text = tweet.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let text = tweet
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             (None, text)
         };
 
@@ -214,7 +255,10 @@ impl UrlReader {
 
         let content = truncate_content(body);
         let markdown = if let Some(ref t) = title {
-            format!("# {}\n\n> @{} ({})\n\n{}", t, author_handle, author_name, content)
+            format!(
+                "# {}\n\n> @{} ({})\n\n{}",
+                t, author_handle, author_name, content
+            )
         } else {
             format!("> @{} ({})\n\n{}", author_handle, author_name, content)
         };
@@ -222,7 +266,13 @@ impl UrlReader {
         log::info!("[Twitter] 成功: {} chars", markdown.len());
         Ok(UrlReadResult {
             content: markdown,
-            title: title.or_else(|| Some(format!("@{}: {}…", author_handle, content.chars().take(50).collect::<String>()))),
+            title: title.or_else(|| {
+                Some(format!(
+                    "@{}: {}…",
+                    author_handle,
+                    content.chars().take(50).collect::<String>()
+                ))
+            }),
         })
     }
 
@@ -244,21 +294,39 @@ impl UrlReader {
             .get(&repo_url)
             .header("User-Agent", "xiaoyun/0.1")
             .header("Accept", "application/vnd.github.v3+json")
-            .send().await.map_err(|e| format!("GitHub API: {}", e))?
-            .json().await.map_err(|e| format!("GitHub JSON: {}", e))?;
+            .send()
+            .await
+            .map_err(|e| format!("GitHub API: {}", e))?
+            .json()
+            .await
+            .map_err(|e| format!("GitHub JSON: {}", e))?;
 
-        let description = repo_json.get("description").and_then(|v| v.as_str()).unwrap_or("");
-        let stars = repo_json.get("stargazers_count").and_then(|v| v.as_u64()).unwrap_or(0);
-        let language = repo_json.get("language").and_then(|v| v.as_str()).unwrap_or("Unknown");
-        let repo_name = repo_json.get("full_name").and_then(|v| v.as_str()).unwrap_or("");
+        let description = repo_json
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let stars = repo_json
+            .get("stargazers_count")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let language = repo_json
+            .get("language")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        let repo_name = repo_json
+            .get("full_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
 
         // 2. Try to get README
         let readme_url = format!("https://api.github.com/repos/{}/{}/readme", owner, repo);
-        let readme_content = match self.http_client
+        let readme_content = match self
+            .http_client
             .get(&readme_url)
             .header("User-Agent", "xiaoyun/0.1")
             .header("Accept", "application/vnd.github.v3+json")
-            .send().await
+            .send()
+            .await
         {
             Ok(resp) if resp.status().is_success() => {
                 if let Ok(json) = resp.json::<serde_json::Value>().await {
@@ -306,19 +374,37 @@ impl UrlReader {
             .http_client
             .get(&json_url)
             .header("User-Agent", "xiaoyun/0.1")
-            .send().await.map_err(|e| format!("Reddit: {}", e))?
-            .json().await.map_err(|e| format!("Reddit JSON: {}", e))?;
+            .send()
+            .await
+            .map_err(|e| format!("Reddit: {}", e))?
+            .json()
+            .await
+            .map_err(|e| format!("Reddit JSON: {}", e))?;
 
         // Reddit returns an array: [post_listing, comments_listing]
-        let post_data = json.as_array()
+        let post_data = json
+            .as_array()
             .and_then(|arr| arr.first())
             .and_then(|listing| listing.pointer("/data/children/0/data"))
             .ok_or("Reddit: cannot find post data")?;
 
-        let title = post_data.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let selftext = post_data.get("selftext").and_then(|v| v.as_str()).unwrap_or("");
-        let subreddit = post_data.get("subreddit").and_then(|v| v.as_str()).unwrap_or("");
-        let author = post_data.get("author").and_then(|v| v.as_str()).unwrap_or("");
+        let title = post_data
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let selftext = post_data
+            .get("selftext")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let subreddit = post_data
+            .get("subreddit")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let author = post_data
+            .get("author")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let score = post_data.get("score").and_then(|v| v.as_i64()).unwrap_or(0);
 
         let body = if selftext.is_empty() {
@@ -331,7 +417,11 @@ impl UrlReader {
 
         let markdown = format!(
             "# {}\n\n> r/{} · u/{} · {} points\n\n{}",
-            title, subreddit, author, score, truncate_content(body)
+            title,
+            subreddit,
+            author,
+            score,
+            truncate_content(body)
         );
 
         log::info!("[Reddit] 成功: {} chars", markdown.len());
@@ -353,13 +443,16 @@ impl UrlReader {
 
         // Step 1: Fetch the video page HTML (for title and chapters)
         let watch_url = format!("https://www.youtube.com/watch?v={}", video_id);
-        let html = self.http_client
+        let html = self
+            .http_client
             .get(&watch_url)
             .header("User-Agent", BROWSER_UA)
             .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-            .send().await
+            .send()
+            .await
             .map_err(|e| format!("YouTube page request failed: {}", e))?
-            .text().await
+            .text()
+            .await
             .map_err(|e| format!("YouTube page read failed: {}", e))?;
 
         let title = extract_youtube_title(&html);
@@ -384,7 +477,8 @@ impl UrlReader {
             "/usr/local/bin/yt-dlp".to_string(),
             "/opt/homebrew/bin/yt-dlp".to_string(),
         ];
-        let yt_dlp_bin = candidates.iter()
+        let yt_dlp_bin = candidates
+            .iter()
             .find(|p| std::path::Path::new(p).exists())
             .cloned()
             .unwrap_or_else(|| "yt-dlp".to_string()); // bare name as last resort
@@ -407,15 +501,23 @@ impl UrlReader {
             let output = tokio::process::Command::new(&yt_dlp_bin)
                 .args(&[
                     "--write-auto-sub",
-                    "--sub-lang", langs,
+                    "--sub-lang",
+                    langs,
                     "--skip-download",
-                    "--sub-format", "srv1",
-                    "-o", out_path,
+                    "--sub-format",
+                    "srv1",
+                    "-o",
+                    out_path,
                     &watch_url,
                 ])
                 .output()
                 .await
-                .map_err(|e| format!("yt-dlp not found or failed: {}. Please install: pip3 install yt-dlp", e))?;
+                .map_err(|e| {
+                    format!(
+                        "yt-dlp not found or failed: {}. Please install: pip3 install yt-dlp",
+                        e
+                    )
+                })?;
 
             last_stderr = String::from_utf8_lossy(&output.stderr).to_string();
             if !output.status.success() {
@@ -424,8 +526,11 @@ impl UrlReader {
 
             // Check if subtitle file was downloaded
             let has_sub = std::fs::read_dir(&tmp_dir)
-                .map(|entries| entries.filter_map(|e| e.ok())
-                    .any(|e| e.path().extension().map(|x| x == "srv1").unwrap_or(false)))
+                .map(|entries| {
+                    entries
+                        .filter_map(|e| e.ok())
+                        .any(|e| e.path().extension().map(|x| x == "srv1").unwrap_or(false))
+                })
                 .unwrap_or(false);
 
             if has_sub {
@@ -435,7 +540,10 @@ impl UrlReader {
 
             // If failed and more attempts left, wait before retry
             if attempt + 1 < lang_attempts.len() {
-                log::info!("[YouTube] attempt {} failed, waiting 2s before next lang...", attempt + 1);
+                log::info!(
+                    "[YouTube] attempt {} failed, waiting 2s before next lang...",
+                    attempt + 1
+                );
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
         }
@@ -445,7 +553,11 @@ impl UrlReader {
             .map_err(|e| format!("Cannot read tmp dir: {}", e))?
             .filter_map(|entry| entry.ok())
             .find(|entry| {
-                entry.path().extension().map(|e| e == "srv1").unwrap_or(false)
+                entry
+                    .path()
+                    .extension()
+                    .map(|e| e == "srv1")
+                    .unwrap_or(false)
             })
             .and_then(|entry| std::fs::read_to_string(entry.path()).ok())
             .unwrap_or_default();
@@ -456,28 +568,58 @@ impl UrlReader {
         if xml.is_empty() {
             let desc = extract_youtube_description(&html).unwrap_or_default();
             let content = if let Some(ref t) = title {
-                format!("{}\n\n{}", t, if desc.is_empty() { "（该视频没有字幕）".to_string() } else { desc })
+                format!(
+                    "{}\n\n{}",
+                    t,
+                    if desc.is_empty() {
+                        "（该视频没有字幕）".to_string()
+                    } else {
+                        desc
+                    }
+                )
             } else {
-                if desc.is_empty() { "（该视频没有字幕）".to_string() } else { desc }
+                if desc.is_empty() {
+                    "（该视频没有字幕）".to_string()
+                } else {
+                    desc
+                }
             };
-            return Ok(UrlReadResult { content: truncate_content(content), title });
+            return Ok(UrlReadResult {
+                content: truncate_content(content),
+                title,
+            });
         }
 
         // Step 4: Parse XML → structured snippets with timestamps
-        let re_text = Regex::new(r#"<text\s+start="([^"]+)"\s+dur="([^"]+)"[^>]*>(.*?)</text>"#).unwrap();
+        let re_text =
+            Regex::new(r#"<text\s+start="([^"]+)"\s+dur="([^"]+)"[^>]*>(.*?)</text>"#).unwrap();
         let re_html_tags = Regex::new(r"<[^>]*>").unwrap();
 
-        struct Snippet { start: f64, dur: f64, text: String }
+        struct Snippet {
+            start: f64,
+            dur: f64,
+            text: String,
+        }
 
         let mut snippets: Vec<Snippet> = Vec::new();
         for cap in re_text.captures_iter(&xml) {
-            let start: f64 = cap.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
-            let dur: f64 = cap.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0.0);
+            let start: f64 = cap
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0.0);
+            let dur: f64 = cap
+                .get(2)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0.0);
             let raw_text = cap.get(3).map(|m| m.as_str()).unwrap_or("");
             let decoded = html_decode(raw_text).replace('\n', " ");
             let clean = re_html_tags.replace_all(&decoded, "").trim().to_string();
             if !clean.is_empty() {
-                snippets.push(Snippet { start, dur, text: clean });
+                snippets.push(Snippet {
+                    start,
+                    dur,
+                    text: clean,
+                });
             }
         }
 
@@ -520,25 +662,41 @@ impl UrlReader {
 
         if chapters.is_empty() {
             for (start, end, text) in &paragraphs {
-                output.push_str(&format!("[{} → {}]\n{}\n\n",
-                    format_timestamp(*start), format_timestamp(*end), text));
+                output.push_str(&format!(
+                    "[{} → {}]\n{}\n\n",
+                    format_timestamp(*start),
+                    format_timestamp(*end),
+                    text
+                ));
             }
         } else {
             for (ci, chapter) in chapters.iter().enumerate() {
                 let chapter_end = chapters.get(ci + 1).map(|c| c.0).unwrap_or(f64::MAX);
-                output.push_str(&format!("【{}】{}\n\n", format_timestamp(chapter.0), chapter.1));
+                output.push_str(&format!(
+                    "【{}】{}\n\n",
+                    format_timestamp(chapter.0),
+                    chapter.1
+                ));
                 for (start, end, text) in &paragraphs {
                     if *start >= chapter.0 && *start < chapter_end {
-                        output.push_str(&format!("[{} → {}]\n{}\n\n",
-                            format_timestamp(*start), format_timestamp(*end), text));
+                        output.push_str(&format!(
+                            "[{} → {}]\n{}\n\n",
+                            format_timestamp(*start),
+                            format_timestamp(*end),
+                            text
+                        ));
                     }
                 }
             }
         }
 
         let content = truncate_content(output.trim().to_string());
-        log::info!("[YouTube] 成功: {} chars, {} paragraphs, {} chapters",
-            content.len(), paragraphs.len(), chapters.len());
+        log::info!(
+            "[YouTube] 成功: {} chars, {} paragraphs, {} chapters",
+            content.len(),
+            paragraphs.len(),
+            chapters.len()
+        );
         Ok(UrlReadResult { content, title })
     }
 
@@ -552,7 +710,8 @@ impl UrlReader {
             let rest = &url[pos + 9..];
             let note_id = rest.split('?').next().unwrap_or(rest);
             // Keep xsec params needed for access
-            let xsec = url.find("xsec_token=")
+            let xsec = url
+                .find("xsec_token=")
                 .map(|start| {
                     let token_part = &url[start..];
                     let end = token_part.find('&').unwrap_or(token_part.len());
@@ -572,7 +731,9 @@ impl UrlReader {
             .await
             .map_err(|e| format!("小红书请求失败: {}", e))?;
 
-        let html = response.text().await
+        let html = response
+            .text()
+            .await
             .map_err(|e| format!("读取小红书响应失败: {}", e))?;
 
         // Extract title from SSR JSON: "title":"..."
@@ -585,11 +746,12 @@ impl UrlReader {
             if !content.is_empty() {
                 // Unescape \n \t
                 let content = content.replace("\\n", "\n").replace("\\t", " ");
-                log::info!("[Xiaohongshu] 提取成功: {} chars, title={:?}", content.len(), title);
-                return Ok(UrlReadResult {
-                    content,
-                    title,
-                });
+                log::info!(
+                    "[Xiaohongshu] 提取成功: {} chars, title={:?}",
+                    content.len(),
+                    title
+                );
+                return Ok(UrlReadResult { content, title });
             }
         }
 
@@ -599,17 +761,21 @@ impl UrlReader {
     async fn fetch_via_jina(&self, url: &str) -> Result<UrlReadResult, String> {
         let jina_url = format!("{}{}", JINA_READER_BASE, url);
 
-        let response = self.http_client
+        let response = self
+            .http_client
             .get(&jina_url)
             .header("X-Return-Format", "markdown")
-            .send().await
+            .send()
+            .await
             .map_err(|e| format!("Jina request failed: {}", e))?;
 
         if !response.status().is_success() {
             return Err(format!("Jina status: {}", response.status()));
         }
 
-        let body = response.text().await
+        let body = response
+            .text()
+            .await
             .map_err(|e| format!("Jina read failed: {}", e))?;
 
         if body.trim().len() < MIN_CONTENT_LENGTH {
@@ -633,12 +799,18 @@ impl UrlReader {
         let content = strip_html_to_text(&html);
 
         if content.len() < MIN_CONTENT_LENGTH {
-            return Err(format!("Direct HTML: content too short ({} chars)", content.len()));
+            return Err(format!(
+                "Direct HTML: content too short ({} chars)",
+                content.len()
+            ));
         }
 
         let markdown = format_with_title(&title, &truncate_content(content));
         log::info!("[Direct] 成功: {} chars, title={:?}", markdown.len(), title);
-        Ok(UrlReadResult { content: markdown, title })
+        Ok(UrlReadResult {
+            content: markdown,
+            title,
+        })
     }
 
     // ─── HTTP helpers ──────────────────────────────────────────────
@@ -647,16 +819,24 @@ impl UrlReader {
         self.http_client
             .get(url)
             .header("User-Agent", BROWSER_UA)
-            .send().await.map_err(|e| format!("HTTP request failed: {}", e))?
-            .text().await.map_err(|e| format!("HTTP read failed: {}", e))
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?
+            .text()
+            .await
+            .map_err(|e| format!("HTTP read failed: {}", e))
     }
 
     async fn get_json(&self, url: &str) -> Result<serde_json::Value, String> {
         self.http_client
             .get(url)
             .header("User-Agent", "xiaoyun/0.1")
-            .send().await.map_err(|e| format!("HTTP request failed: {}", e))?
-            .json().await.map_err(|e| format!("JSON parse failed: {}", e))
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request failed: {}", e))?
+            .json()
+            .await
+            .map_err(|e| format!("JSON parse failed: {}", e))
     }
 }
 
@@ -667,12 +847,17 @@ impl UrlReader {
 /// Check if text is predominantly non-Chinese (needs translation)
 fn needs_translation(text: &str) -> bool {
     let total_chars: usize = text.chars().filter(|c| c.is_alphanumeric()).count();
-    if total_chars < 20 { return false; }
-    let chinese_chars: usize = text.chars().filter(|c| {
-        let u = *c as u32;
-        (0x4E00..=0x9FFF).contains(&u) ||  // CJK Unified
-        (0x3400..=0x4DBF).contains(&u)      // CJK Extension A
-    }).count();
+    if total_chars < 20 {
+        return false;
+    }
+    let chinese_chars: usize = text
+        .chars()
+        .filter(|c| {
+            let u = *c as u32;
+            (0x4E00..=0x9FFF).contains(&u) ||  // CJK Unified
+        (0x3400..=0x4DBF).contains(&u) // CJK Extension A
+        })
+        .count();
     let ratio = chinese_chars as f64 / total_chars as f64;
     ratio < 0.3 // less than 30% Chinese → needs translation
 }
@@ -683,7 +868,8 @@ fn needs_translation(text: &str) -> bool {
 ///   翻译：translated text
 async fn translate_bilingual(client: &Client, text: &str) -> String {
     // Split into paragraphs by blank lines
-    let paragraphs: Vec<&str> = text.split("\n\n")
+    let paragraphs: Vec<&str> = text
+        .split("\n\n")
         .map(|p| p.trim())
         .filter(|p| !p.is_empty())
         .collect();
@@ -702,7 +888,7 @@ async fn translate_bilingual(client: &Client, text: &str) -> String {
         if para.starts_with('[') && para.contains('→') {
             if let Some(newline_pos) = para.find('\n') {
                 let timestamp = &para[..newline_pos];
-                let content = para[newline_pos+1..].trim();
+                let content = para[newline_pos + 1..].trim();
                 result.push_str(timestamp);
                 result.push('\n');
                 result.push_str(content);
@@ -729,7 +915,7 @@ async fn translate_bilingual(client: &Client, text: &str) -> String {
             result.push('\n');
             // Only translate the part after "–"
             if let Some(dash_pos) = para.find('–') {
-                let chapter_title = para[dash_pos+3..].trim(); // skip "– "
+                let chapter_title = para[dash_pos + 3..].trim(); // skip "– "
                 if !chapter_title.is_empty() && needs_translation(chapter_title) {
                     if let Ok(translated) = translate_chunk(client, chapter_title).await {
                         result.push_str(&format!("翻译：{}", translated));
@@ -769,10 +955,14 @@ async fn translate_to_chinese(client: &Client, text: &str) -> String {
             chunks.push(current.clone());
             current.clear();
         }
-        if !current.is_empty() { current.push('\n'); }
+        if !current.is_empty() {
+            current.push('\n');
+        }
         current.push_str(line);
     }
-    if !current.is_empty() { chunks.push(current); }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
 
     let mut translated_parts: Vec<String> = Vec::new();
 
@@ -806,15 +996,17 @@ async fn translate_chunk(client: &Client, text: &str) -> Result<String, String> 
         ])
         .header("User-Agent", BROWSER_UA)
         .timeout(Duration::from_secs(10))
-        .send().await
+        .send()
+        .await
         .map_err(|e| format!("translate request failed: {}", e))?
-        .text().await
+        .text()
+        .await
         .map_err(|e| format!("translate read failed: {}", e))?;
 
     // Response is a nested JSON array: [[["translated","original",...],...],...]
     // Parse manually — it's not standard JSON (has null entries)
-    let parsed: serde_json::Value = serde_json::from_str(&resp)
-        .map_err(|e| format!("translate parse failed: {}", e))?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&resp).map_err(|e| format!("translate parse failed: {}", e))?;
 
     let mut result = String::new();
     if let Some(sentences) = parsed.get(0).and_then(|v| v.as_array()) {
@@ -921,7 +1113,9 @@ fn extract_wechat_show_type(html: &str) -> Option<u32> {
     for pat in &["item_show_type = \"", "item_show_type = '"] {
         if let Some(start) = html.find(pat) {
             let rest = &html[start + pat.len()..];
-            let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            let end = rest
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(rest.len());
             if end > 0 {
                 if let Ok(n) = rest[..end].parse::<u32>() {
                     return Some(n);
@@ -938,7 +1132,9 @@ fn extract_wechat_title(html: &str) -> Option<String> {
         let rest = &html[start + 13..];
         if let Some(end) = rest.find('\'') {
             let title = rest[..end].trim().to_string();
-            if !title.is_empty() { return Some(html_decode(&title)); }
+            if !title.is_empty() {
+                return Some(html_decode(&title));
+            }
         }
     }
     // msg_title = "..." (double quotes)
@@ -946,7 +1142,9 @@ fn extract_wechat_title(html: &str) -> Option<String> {
         let rest = &html[start + 13..];
         if let Some(end) = rest.find('"') {
             let title = rest[..end].trim().to_string();
-            if !title.is_empty() { return Some(html_decode(&title)); }
+            if !title.is_empty() {
+                return Some(html_decode(&title));
+            }
         }
     }
     extract_og_title(html)
@@ -984,12 +1182,24 @@ fn extract_wechat_content_noencode(html: &str) -> String {
     let mut result = String::new();
     let mut in_tag = false;
     for ch in decoded.chars() {
-        if result.len() > MAX_CONTENT_LENGTH { break; }
+        if result.len() > MAX_CONTENT_LENGTH {
+            break;
+        }
         match ch {
             '<' => in_tag = true,
-            '>' => { in_tag = false; }
-            '\n' => { if !result.ends_with('\n') { result.push('\n'); } }
-            _ => { if !in_tag { result.push(ch); } }
+            '>' => {
+                in_tag = false;
+            }
+            '\n' => {
+                if !result.ends_with('\n') {
+                    result.push('\n');
+                }
+            }
+            _ => {
+                if !in_tag {
+                    result.push(ch);
+                }
+            }
         }
     }
 
@@ -1021,7 +1231,9 @@ fn extract_wechat_content(html: &str) -> String {
     let mut chars = content_html.chars().peekable();
 
     while let Some(ch) = chars.next() {
-        if result.len() > MAX_CONTENT_LENGTH { break; }
+        if result.len() > MAX_CONTENT_LENGTH {
+            break;
+        }
         match ch {
             '<' => {
                 in_tag = true;
@@ -1030,26 +1242,49 @@ fn extract_wechat_content(html: &str) -> String {
                     div_depth += 1;
                 } else if upcoming.starts_with("/div") || upcoming.starts_with("/section") {
                     div_depth -= 1;
-                    if div_depth <= 0 { break; }
+                    if div_depth <= 0 {
+                        break;
+                    }
                 }
-                if upcoming.starts_with("br") || upcoming.starts_with("/p")
-                    || upcoming.starts_with("/div") || upcoming.starts_with("/section") {
-                    if !result.ends_with('\n') { result.push('\n'); }
+                if upcoming.starts_with("br")
+                    || upcoming.starts_with("/p")
+                    || upcoming.starts_with("/div")
+                    || upcoming.starts_with("/section")
+                {
+                    if !result.ends_with('\n') {
+                        result.push('\n');
+                    }
                 }
             }
-            '>' => { in_tag = false; }
-            _ => { if !in_tag { result.push(ch); } }
+            '>' => {
+                in_tag = false;
+            }
+            _ => {
+                if !in_tag {
+                    result.push(ch);
+                }
+            }
         }
     }
 
     let decoded = html_decode(&result);
-    decoded.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+    decoded
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 // ─── Twitter helpers ───────────────────────────────────────────────
 
 fn parse_twitter_url(url: &str) -> Option<(String, String)> {
-    let clean = url.trim().trim_end_matches('/').split('?').next().unwrap_or(url);
+    let clean = url
+        .trim()
+        .trim_end_matches('/')
+        .split('?')
+        .next()
+        .unwrap_or(url);
     let parts: Vec<&str> = clean.split('/').collect();
     for i in 0..parts.len() {
         if parts[i] == "status" && i > 0 && i + 1 < parts.len() {
@@ -1065,11 +1300,19 @@ fn parse_twitter_url(url: &str) -> Option<(String, String)> {
 
 fn extract_twitter_article_content(article: &serde_json::Value) -> String {
     let mut lines = Vec::new();
-    if let Some(blocks) = article.pointer("/content/blocks").and_then(|v| v.as_array()) {
+    if let Some(blocks) = article
+        .pointer("/content/blocks")
+        .and_then(|v| v.as_array())
+    {
         for block in blocks {
             let text = block.get("text").and_then(|v| v.as_str()).unwrap_or("");
-            if text.is_empty() { continue; }
-            let btype = block.get("type").and_then(|v| v.as_str()).unwrap_or("unstyled");
+            if text.is_empty() {
+                continue;
+            }
+            let btype = block
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unstyled");
             match btype {
                 "header-one" => lines.push(format!("## {}", text)),
                 "header-two" => lines.push(format!("### {}", text)),
@@ -1088,15 +1331,22 @@ fn extract_twitter_article_content(article: &serde_json::Value) -> String {
 
 /// Parse GitHub repo URL: https://github.com/owner/repo[/...]
 fn parse_github_repo_url(url: &str) -> Option<(String, String)> {
-    let clean = url.trim().trim_end_matches('/').split('?').next().unwrap_or(url);
+    let clean = url
+        .trim()
+        .trim_end_matches('/')
+        .split('?')
+        .next()
+        .unwrap_or(url);
     let parts: Vec<&str> = clean.split('/').collect();
     // Find "github.com" and get the next two segments
     for i in 0..parts.len() {
         if parts[i] == "github.com" && i + 2 < parts.len() {
             let owner = parts[i + 1].to_string();
             let repo = parts[i + 2].to_string();
-            if !owner.is_empty() && !repo.is_empty()
-                && owner != "." && repo != "."
+            if !owner.is_empty()
+                && !repo.is_empty()
+                && owner != "."
+                && repo != "."
                 && !owner.starts_with('-')
             {
                 return Some((owner, repo));
@@ -1114,7 +1364,9 @@ fn base64_decode(input: &str) -> Option<String> {
     let mut bits: u32 = 0;
 
     for &b in input.as_bytes() {
-        if b == b'=' || b == b'\n' || b == b'\r' || b == b' ' { continue; }
+        if b == b'=' || b == b'\n' || b == b'\r' || b == b' ' {
+            continue;
+        }
         let val = table.iter().position(|&c| c == b)? as u32;
         buf = (buf << 6) | val;
         bits += 6;
@@ -1137,7 +1389,9 @@ fn extract_og_description(html: &str) -> Option<String> {
             let c_rest = &rest[c_start + 9..];
             if let Some(end) = c_rest.find('"') {
                 let desc = c_rest[..end].trim().to_string();
-                if !desc.is_empty() { return Some(html_decode(&desc)); }
+                if !desc.is_empty() {
+                    return Some(html_decode(&desc));
+                }
             }
         }
     }
@@ -1151,7 +1405,9 @@ fn extract_og_title(html: &str) -> Option<String> {
             let c_rest = &rest[c_start + 9..];
             if let Some(end) = c_rest.find('"') {
                 let title = c_rest[..end].trim().to_string();
-                if !title.is_empty() { return Some(html_decode(&title)); }
+                if !title.is_empty() {
+                    return Some(html_decode(&title));
+                }
             }
         }
     }
@@ -1168,7 +1424,9 @@ fn extract_html_title(html: &str) -> Option<String> {
         let rest = &html[start + 7..];
         if let Some(end) = rest.find("</title>") {
             let title = rest[..end].trim().to_string();
-            if !title.is_empty() { return Some(html_decode(&title)); }
+            if !title.is_empty() {
+                return Some(html_decode(&title));
+            }
         }
     }
     None
@@ -1178,7 +1436,8 @@ fn extract_html_title(html: &str) -> Option<String> {
 fn strip_html_to_text(html: &str) -> String {
     // Try to find <article> or <main> or <body>
     let start_markers = ["<article", "<main", "<body"];
-    let start_idx = start_markers.iter()
+    let start_idx = start_markers
+        .iter()
         .filter_map(|m| html.find(m))
         .min()
         .unwrap_or(0);
@@ -1199,16 +1458,26 @@ fn strip_html_to_text(html: &str) -> String {
             in_tag = true;
             // Check for <script or <style
             let upcoming = &content_html[i..std::cmp::min(i + 20, len)].to_lowercase();
-            if upcoming.starts_with("<script") { in_script = true; }
-            else if upcoming.starts_with("</script") { in_script = false; }
-            else if upcoming.starts_with("<style") { in_style = true; }
-            else if upcoming.starts_with("</style") { in_style = false; }
+            if upcoming.starts_with("<script") {
+                in_script = true;
+            } else if upcoming.starts_with("</script") {
+                in_script = false;
+            } else if upcoming.starts_with("<style") {
+                in_style = true;
+            } else if upcoming.starts_with("</style") {
+                in_style = false;
+            }
             // Block-level tags → newline
-            if upcoming.starts_with("<br") || upcoming.starts_with("</p")
-                || upcoming.starts_with("</div") || upcoming.starts_with("</h")
-                || upcoming.starts_with("</li") || upcoming.starts_with("</tr")
+            if upcoming.starts_with("<br")
+                || upcoming.starts_with("</p")
+                || upcoming.starts_with("</div")
+                || upcoming.starts_with("</h")
+                || upcoming.starts_with("</li")
+                || upcoming.starts_with("</tr")
             {
-                if !result.ends_with('\n') { result.push('\n'); }
+                if !result.ends_with('\n') {
+                    result.push('\n');
+                }
             }
             i += 1;
             continue;
@@ -1225,7 +1494,8 @@ fn strip_html_to_text(html: &str) -> String {
     }
 
     let decoded = html_decode(&result);
-    let lines: Vec<&str> = decoded.lines()
+    let lines: Vec<&str> = decoded
+        .lines()
         .map(|l| l.trim())
         .filter(|l| l.len() > 1) // skip single-char noise
         .collect();
@@ -1257,7 +1527,9 @@ fn extract_youtube_id(url: &str) -> Option<String> {
     // youtu.be/VIDEO_ID
     if url.contains("youtu.be/") {
         let re = Regex::new(r"youtu\.be/([a-zA-Z0-9_-]{11})").ok()?;
-        return re.captures(url).and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
+        return re
+            .captures(url)
+            .and_then(|c| c.get(1).map(|m| m.as_str().to_string()));
     }
 
     // youtube.com/watch?v=VIDEO_ID
@@ -1268,7 +1540,9 @@ fn extract_youtube_id(url: &str) -> Option<String> {
 
     // youtube.com/embed/VIDEO_ID or youtube.com/shorts/VIDEO_ID
     let re_path = Regex::new(r"youtube\.com/(?:embed|shorts)/([a-zA-Z0-9_-]{11})").ok()?;
-    re_path.captures(url).and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+    re_path
+        .captures(url)
+        .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
 }
 
 fn extract_youtube_title(html: &str) -> Option<String> {
@@ -1306,7 +1580,9 @@ fn extract_youtube_chapters(html: &str) -> Vec<(f64, String)> {
         Some(cap) => {
             let raw = cap.get(1).map(|m| m.as_str()).unwrap_or("");
             // Unescape JSON string (\\n → \n, etc.)
-            raw.replace("\\n", "\n").replace("\\\"", "\"").replace("\\\\", "\\")
+            raw.replace("\\n", "\n")
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
         }
         None => return Vec::new(),
     };
@@ -1317,7 +1593,10 @@ fn extract_youtube_chapters(html: &str) -> Vec<(f64, String)> {
 
     for cap in re_chapter.captures_iter(&desc) {
         let ts_str = cap.get(1).map(|m| m.as_str()).unwrap_or("");
-        let title = cap.get(2).map(|m| m.as_str().trim().to_string()).unwrap_or_default();
+        let title = cap
+            .get(2)
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_default();
 
         // Parse timestamp to seconds
         let parts: Vec<u64> = ts_str.split(':').filter_map(|p| p.parse().ok()).collect();
@@ -1370,5 +1649,9 @@ fn extract_json_string_field(html: &str, field: &str) -> Option<String> {
     }
     let value: String = chars[..end].iter().collect();
     let value = value.replace("\\\"", "\"");
-    if value.is_empty() { None } else { Some(value) }
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }

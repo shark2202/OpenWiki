@@ -174,18 +174,15 @@ fn deduplicate_similar(items: Vec<ScoredContent<'_>>) -> Vec<ScoredContent<'_>> 
         let ngrams = extract_ngrams(text, NGRAM_SIZE);
 
         // Check similarity against all kept items
-        let is_similar = kept_ngrams.iter().any(|existing| {
-            jaccard_similarity(&ngrams, existing) > SIMILARITY_THRESHOLD
-        });
+        let is_similar = kept_ngrams
+            .iter()
+            .any(|existing| jaccard_similarity(&ngrams, existing) > SIMILARITY_THRESHOLD);
 
         if !is_similar {
             kept_ngrams.push(ngrams);
             kept.push(scored);
         } else {
-            log::debug!(
-                "去重相似内容: {}",
-                &text[..text.len().min(50)]
-            );
+            log::debug!("去重相似内容: {}", &text[..text.len().min(50)]);
         }
     }
 
@@ -383,9 +380,9 @@ fn looks_like_code_or_path(text: &str) -> bool {
 
     // Shell commands: common prefixes
     let cmd_prefixes = [
-        "cd ", "ls ", "rm ", "cp ", "mv ", "mkdir ", "chmod ", "chown ", "sudo ",
-        "npm ", "npx ", "yarn ", "pnpm ", "cargo ", "git ", "docker ", "brew ",
-        "pip ", "python ", "node ", "curl ", "wget ", "ssh ", "scp ",
+        "cd ", "ls ", "rm ", "cp ", "mv ", "mkdir ", "chmod ", "chown ", "sudo ", "npm ", "npx ",
+        "yarn ", "pnpm ", "cargo ", "git ", "docker ", "brew ", "pip ", "python ", "node ",
+        "curl ", "wget ", "ssh ", "scp ",
     ];
     let lower = trimmed.to_lowercase();
     for prefix in &cmd_prefixes {
@@ -407,7 +404,8 @@ fn looks_like_code_or_path(text: &str) -> bool {
     }
 
     // Import / require statements
-    if trimmed.starts_with("import ") || trimmed.starts_with("from ") && trimmed.contains("import") {
+    if trimmed.starts_with("import ") || trimmed.starts_with("from ") && trimmed.contains("import")
+    {
         return true;
     }
     if trimmed.starts_with("const ") || trimmed.starts_with("let ") || trimmed.starts_with("var ") {
@@ -460,11 +458,19 @@ mod tests {
         let a = extract_ngrams("今天天气很好啊", 3);
         let b = extract_ngrams("今天天气很好呢", 3);
         let sim = jaccard_similarity(&a, &b);
-        assert!(sim > 0.5, "Similar texts should have high Jaccard similarity: {}", sim);
+        assert!(
+            sim > 0.5,
+            "Similar texts should have high Jaccard similarity: {}",
+            sim
+        );
 
         let c = extract_ngrams("完全不同的内容", 3);
         let sim2 = jaccard_similarity(&a, &c);
-        assert!(sim2 < 0.3, "Different texts should have low similarity: {}", sim2);
+        assert!(
+            sim2 < 0.3,
+            "Different texts should have low similarity: {}",
+            sim2
+        );
     }
 
     #[test]
@@ -490,6 +496,8 @@ mod tests {
                 updated_at: "2025-01-01T00:00:00Z".to_string(),
                 digested_at: None,
                 digest_action: None,
+                summary: None,
+                tags: None,
             }
         };
 

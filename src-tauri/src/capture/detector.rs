@@ -81,8 +81,14 @@ fn compute_dedup_keys(event: &serde_json::Value) -> Vec<String> {
 
             // Key based on image dimensions (for cross-source dedup between
             // clipboard images and screenshot files of the same capture)
-            let w = event.get("image_width").and_then(|v| v.as_u64()).unwrap_or(0);
-            let h = event.get("image_height").and_then(|v| v.as_u64()).unwrap_or(0);
+            let w = event
+                .get("image_width")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let h = event
+                .get("image_height")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             if w > 0 && h > 0 {
                 keys.push(format!("img:dims:{}x{}", w, h));
             }
@@ -109,11 +115,7 @@ fn compute_dedup_keys(event: &serde_json::Value) -> Vec<String> {
 /// Async function to fetch URL content.
 /// Uses smart routing: WeChat → direct HTML, Twitter → fxtwitter API, others → Jina.
 async fn fetch_url_content(content_id: String, url: String, db: Arc<Database>, app: AppHandle) {
-    log::info!(
-        "Starting URL fetch task for {} (url={})",
-        content_id,
-        url
-    );
+    log::info!("Starting URL fetch task for {} (url={})", content_id, url);
 
     let reader = UrlReader::new();
     let result = reader.fetch_content(&url).await;
@@ -122,11 +124,7 @@ async fn fetch_url_content(content_id: String, url: String, db: Arc<Database>, a
         Ok(result) => {
             let db_for_summary = db.clone();
             let repo = Repository::new(db);
-            if let Err(e) = repo.update_content_for_url(
-                &content_id,
-                &result.content,
-                &url,
-            ) {
+            if let Err(e) = repo.update_content_for_url(&content_id, &result.content, &url) {
                 log::error!("Failed to update URL content: {}", e);
             } else {
                 log::info!(
@@ -137,7 +135,10 @@ async fn fetch_url_content(content_id: String, url: String, db: Arc<Database>, a
                 );
                 // Generate AI summary + tags after URL content is ready
                 crate::commands::capture::spawn_summary_task(
-                    db_for_summary, app.clone(), content_id.clone(), result.content.clone(),
+                    db_for_summary,
+                    app.clone(),
+                    content_id.clone(),
+                    result.content.clone(),
                 );
                 let _ = app.emit(
                     "content:url-fetched",
@@ -194,7 +195,9 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
             if contains_sensitive_data(text) {
                 log::info!(
                     "Sensitive data detected, skipping capture (source_app={}, preview={}...)",
-                    data.get("source_app").and_then(|v| v.as_str()).unwrap_or("Unknown"),
+                    data.get("source_app")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown"),
                     &text.chars().take(20).collect::<String>()
                 );
                 return;
@@ -241,7 +244,10 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
             if content.content_type.as_str() == "text" {
                 if let Some(ref text) = content.raw_text {
                     crate::commands::capture::spawn_summary_task(
-                        db.clone(), app.clone(), content.id.clone(), text.clone(),
+                        db.clone(),
+                        app.clone(),
+                        content.id.clone(),
+                        text.clone(),
                     );
                 }
             }
@@ -251,7 +257,9 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
             if content.content_type.as_str() == "url" {
                 if let Some(url) = content.source_url {
                     // Check if content has been fetched already
-                    let needs_fetch = content.raw_text.as_ref()
+                    let needs_fetch = content
+                        .raw_text
+                        .as_ref()
                         .map(|text| text.is_empty() || text.as_str() == url)
                         .unwrap_or(true);
 
@@ -270,11 +278,7 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
                         .unwrap_or(true);
 
                     if url_reading_enabled {
-                        log::info!(
-                            "Spawning URL fetch task for {} (url={})",
-                            content.id,
-                            url
-                        );
+                        log::info!("Spawning URL fetch task for {} (url={})", content.id, url);
                         let content_id = content.id.clone();
                         let app_clone = app.clone();
                         tauri::async_runtime::spawn(fetch_url_content(
@@ -287,10 +291,7 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
                         log::info!("URL reading disabled, skipping fetch for {}", content.id);
                     }
                 } else {
-                    log::warn!(
-                        "URL content {} has no source_url, cannot fetch",
-                        content.id
-                    );
+                    log::warn!("URL content {} has no source_url, cannot fetch", content.id);
                 }
             }
 
@@ -305,16 +306,25 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
                         match tokio::task::spawn_blocking({
                             let path = image_path.clone();
                             move || super::ocr::recognize_text(&path)
-                        }).await {
+                        })
+                        .await
+                        {
                             Ok(Ok(text)) => {
                                 let db_for_summary = db_clone.clone();
                                 let repo = Repository::new(db_clone);
                                 if let Err(e) = repo.update_raw_text(&content_id, &text) {
                                     log::error!("[OCR] Failed to save: {}", e);
                                 } else {
-                                    log::info!("[OCR] Auto-OCR done for {}: {} chars", content_id, text.len());
+                                    log::info!(
+                                        "[OCR] Auto-OCR done for {}: {} chars",
+                                        content_id,
+                                        text.len()
+                                    );
                                     crate::commands::capture::spawn_summary_task(
-                                        db_for_summary, app_clone.clone(), content_id.clone(), text.clone(),
+                                        db_for_summary,
+                                        app_clone.clone(),
+                                        content_id.clone(),
+                                        text.clone(),
                                     );
                                     let _ = app_clone.emit(
                                         "content:ocr-done",
@@ -340,7 +350,10 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
             if e.contains("Duplicate content") {
                 log::debug!("Duplicate content moved to top");
                 // Notify frontend to refresh (order changed)
-                let _ = app.emit("content:url-fetched", serde_json::json!({"id": "", "reorder": true}));
+                let _ = app.emit(
+                    "content:url-fetched",
+                    serde_json::json!({"id": "", "reorder": true}),
+                );
             } else {
                 log::error!("Failed to auto-save content: {}", e);
             }
@@ -421,8 +434,11 @@ fn make_window_transparent(win: &tauri::WebviewWindow) {
                     if !subviews.is_null() {
                         let count: usize = objc2::msg_send![subviews, count];
                         for i in 0..count {
-                            let sub: *const AnyObject = objc2::msg_send![subviews, objectAtIndex: i];
-                            if !sub.is_null() { disable_bg(&*sub); }
+                            let sub: *const AnyObject =
+                                objc2::msg_send![subviews, objectAtIndex: i];
+                            if !sub.is_null() {
+                                disable_bg(&*sub);
+                            }
                         }
                     }
                 }
@@ -482,8 +498,8 @@ fn show_bubble_without_focus(win: &tauri::WebviewWindow) {
 /// Dynamically create and show the bubble window at the bottom-right of the screen.
 /// If a bubble window already exists, close it first to avoid duplicates.
 fn show_bubble_window(app: &AppHandle) {
-    use tauri::WebviewWindowBuilder;
     use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
 
     // Close existing bubble if any, with retry to ensure it's fully closed
     if let Some(existing) = app.get_webview_window("bubble") {
@@ -506,11 +522,13 @@ fn show_bubble_window(app: &AppHandle) {
     let (bubble_style, bubble_position) = {
         let state = app.state::<AppState>();
         let repo = Repository::new(state.db.clone());
-        let style = repo.get_setting("bubble_style")
+        let style = repo
+            .get_setting("bubble_style")
             .ok()
             .flatten()
             .unwrap_or_else(|| "circle".to_string());
-        let position = repo.get_setting("bubble_position")
+        let position = repo
+            .get_setting("bubble_position")
             .ok()
             .flatten()
             .unwrap_or_else(|| "bottom-right".to_string());
@@ -524,11 +542,17 @@ fn show_bubble_window(app: &AppHandle) {
 
     // Determine position based on bubble_position setting
     let (x, y) = if let Some(main_win) = app.get_webview_window("main") {
-        let monitor = main_win.primary_monitor()
+        let monitor = main_win
+            .primary_monitor()
             .ok()
             .flatten()
             .or_else(|| main_win.current_monitor().ok().flatten())
-            .or_else(|| main_win.available_monitors().ok().and_then(|m| m.into_iter().next()));
+            .or_else(|| {
+                main_win
+                    .available_monitors()
+                    .ok()
+                    .and_then(|m| m.into_iter().next())
+            });
 
         if let Some(monitor) = monitor {
             let screen = monitor.size();
@@ -547,7 +571,7 @@ fn show_bubble_window(app: &AppHandle) {
                     } else {
                         (screen_w - win_w) / 2.0
                     }
-                },
+                }
                 _ => screen_w - win_w - margin, // bottom-right, top-right, default
             };
 
@@ -558,7 +582,12 @@ fn show_bubble_window(app: &AppHandle) {
 
             log::info!(
                 "Bubble position: ({}, {}), style={}, pos={}, size={}x{}",
-                x, y, bubble_style, bubble_position, win_w, win_h
+                x,
+                y,
+                bubble_style,
+                bubble_position,
+                win_w,
+                win_h
             );
             (x, y)
         } else {
@@ -569,23 +598,19 @@ fn show_bubble_window(app: &AppHandle) {
     };
 
     // Create the bubble window dynamically
-    match WebviewWindowBuilder::new(
-        app,
-        "bubble",
-        WebviewUrl::App("/bubble".into()),
-    )
-    .title("")
-    .inner_size(win_w, win_h)
-    .position(x, y)
-    .resizable(false)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .visible(false)
-    .focused(false)
-    .accept_first_mouse(true)
-    .build()
+    match WebviewWindowBuilder::new(app, "bubble", WebviewUrl::App("/bubble".into()))
+        .title("")
+        .inner_size(win_w, win_h)
+        .position(x, y)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .focused(false)
+        .accept_first_mouse(true)
+        .build()
     {
         Ok(win) => {
             #[cfg(target_os = "macos")]
@@ -596,12 +621,8 @@ fn show_bubble_window(app: &AppHandle) {
                 } else {
                     // Bar mode: use native vibrancy for glass background
                     use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                    let _ = apply_vibrancy(
-                        &win,
-                        NSVisualEffectMaterial::HudWindow,
-                        None,
-                        Some(16.0),
-                    );
+                    let _ =
+                        apply_vibrancy(&win, NSVisualEffectMaterial::HudWindow, None, Some(16.0));
                 }
                 // Show the window without stealing focus from the current app
                 show_bubble_without_focus(&win);
@@ -617,7 +638,6 @@ fn show_bubble_window(app: &AppHandle) {
         }
     }
 }
-
 
 pub struct CaptureDetector {
     clipboard_watcher: ClipboardWatcher,
@@ -704,7 +724,9 @@ impl CaptureDetector {
             if let Ok(data) = serde_json::from_str::<serde_json::Value>(event.payload()) {
                 let keys = compute_dedup_keys(&data);
                 let should_save = {
-                    let mut state = dedup_for_screenshot.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut state = dedup_for_screenshot
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     state.should_emit(&keys)
                 };
 

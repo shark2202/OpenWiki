@@ -2,8 +2,8 @@ use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watche
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::sync::{
-    Arc,
     atomic::{AtomicBool, Ordering},
+    Arc,
 };
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -97,9 +97,8 @@ impl ScreenshotWatcher {
                                     .unwrap_or_default();
 
                                 // Get the file size for logging
-                                let file_size = std::fs::metadata(path)
-                                    .map(|m| m.len())
-                                    .unwrap_or(0);
+                                let file_size =
+                                    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
 
                                 let event_data = serde_json::json!({
                                     "content_type": "image",

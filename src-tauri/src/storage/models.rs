@@ -131,6 +131,20 @@ pub struct CaptureEvent {
     pub image_path: Option<String>,
 }
 
+/// Rich content data for radar v2 analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentForAnalysis {
+    pub id: String,
+    pub raw_text: Option<String>,
+    pub source_url: Option<String>,
+    pub captured_at: String,
+    pub summary: Option<String>,
+    pub tags: Option<String>,
+    pub user_note: Option<String>,
+    pub source_app: String,
+    pub content_type: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttentionInsight {
     pub id: i64,

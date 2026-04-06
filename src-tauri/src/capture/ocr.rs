@@ -126,7 +126,7 @@ print(resultText)
     log::info!("[OCR] Compiling Swift OCR tool...");
     let output = Command::new("/usr/bin/swiftc")
         .args([
-            "-O",  // optimize
+            "-O", // optimize
             script_path.to_str().unwrap(),
             "-o",
             binary_path.to_str().unwrap(),
@@ -141,7 +141,10 @@ print(resultText)
 
     // Write version marker so we know the binary matches current code
     let _ = std::fs::write(&version_file, version_marker);
-    log::info!("[OCR] Swift OCR tool compiled successfully ({})", version_marker);
+    log::info!(
+        "[OCR] Swift OCR tool compiled successfully ({})",
+        version_marker
+    );
     Ok(())
 }
 
