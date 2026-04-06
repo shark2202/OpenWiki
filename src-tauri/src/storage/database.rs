@@ -103,6 +103,28 @@ impl Database {
             log::info!("Migration 005 applied: added attention_insights table");
         }
 
+        // Migration 006: Add summary and tags columns to captured_content
+        let has_summary: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='summary'")?
+            .query_row([], |row| row.get::<_, i32>(0))
+            .map(|c| c > 0)
+            .unwrap_or(false);
+        let has_tags: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='tags'")?
+            .query_row([], |row| row.get::<_, i32>(0))
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if !has_summary || !has_tags {
+            if !has_summary {
+                conn.execute_batch("ALTER TABLE captured_content ADD COLUMN summary TEXT;")?;
+            }
+            if !has_tags {
+                conn.execute_batch("ALTER TABLE captured_content ADD COLUMN tags TEXT;")?;
+            }
+            log::info!("Migration 006 applied: added summary/tags columns");
+        }
+
         log::info!("Database migrations completed successfully");
         Ok(())
     }

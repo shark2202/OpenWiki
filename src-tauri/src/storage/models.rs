@@ -48,6 +48,8 @@ pub struct CapturedContent {
     pub updated_at: String,
     pub digested_at: Option<String>,
     pub digest_action: Option<String>,
+    pub summary: Option<String>,
+    pub tags: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { getSettings, updateSetting, checkXReaderStatus, type XReaderStatus } from "../services/settingsService";
 
-export type AIProvider = "anthropic" | "openai" | "openrouter";
+export type AIProvider = "anthropic" | "openai" | "openrouter" | "dashscope";
 
 export interface AIModelOption {
   id: string;
@@ -55,10 +55,20 @@ export const MODELS_BY_PROVIDER: Record<AIProvider, AIModelOption[]> = {
     // ── Meta ──
     { id: "meta-llama/llama-4-maverick", label: "Llama 4 Maverick", group: "Meta" },
     // ── Qwen ──
+    { id: "qwen/qwen3.6-plus:free", label: "Qwen3.6 Plus", free: true, group: "免费模型" },
+    { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder 480B", free: true, group: "免费模型" },
+    { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B", free: true, group: "免费模型" },
     { id: "qwen/qwen3-coder-next", label: "Qwen3 Coder Next", group: "Qwen" },
     { id: "qwen/qwen3-235b-a22b", label: "Qwen3 235B", group: "Qwen" },
     // ── Mistral ──
     { id: "mistralai/mistral-large-2512", label: "Mistral Large 3", group: "Mistral" },
+  ],
+  dashscope: [
+    { id: "qwen3.6-plus", label: "Qwen3.6 Plus" },
+    { id: "qwen-plus", label: "Qwen Plus" },
+    { id: "qwen-turbo", label: "Qwen Turbo" },
+    { id: "qwen-max", label: "Qwen Max" },
+    { id: "qwen-long", label: "Qwen Long" },
   ],
 };
 
@@ -66,9 +76,10 @@ export const PROVIDER_LABELS: Record<AIProvider, string> = {
   anthropic: "Anthropic",
   openai: "OpenAI",
   openrouter: "OpenRouter",
+  dashscope: "阿里云百炼",
 };
 
-const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter"];
+const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter", "dashscope"];
 
 export type CaptureMode = "auto" | "confirm";
 export type BubbleStyle = "circle" | "bar";
@@ -130,6 +141,7 @@ interface SettingsState {
   defaultAction: DefaultAction;
   sensitiveFilterEnabled: boolean;
   urlReadingEnabled: boolean;
+  radarIntervalDays: number;
   countdownDuration: number;
   screenshotDir: string;
   totalItems: number;
@@ -149,6 +161,7 @@ interface SettingsState {
   setDefaultAction: (action: DefaultAction) => void;
   setSensitiveFilterEnabled: (enabled: boolean) => void;
   setUrlReadingEnabled: (enabled: boolean) => void;
+  setRadarIntervalDays: (days: number) => void;
   setCountdownDuration: (seconds: number) => void;
   setScreenshotDir: (dir: string) => void;
   setStorageInfo: (totalItems: number, diskUsageMB: number) => void;
@@ -167,6 +180,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   defaultAction: "dismiss" as DefaultAction,
   sensitiveFilterEnabled: false,
   urlReadingEnabled: true,
+  radarIntervalDays: 3,
   countdownDuration: 5,
   screenshotDir: "~/Library/Application Support/com.xiaoyun.app/screenshots",
   totalItems: 0,
@@ -184,6 +198,23 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
       const model = settings.ai_model || MODELS_BY_PROVIDER[provider][0].id;
 
+      // Load per-provider API key
+      const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || "";
+
+      // One-time migration: if legacy ai_api_key exists but NO provider-specific keys exist yet,
+      // migrate it to the current active provider only
+      let apiKey = providerKey;
+      if (!providerKey && settings.ai_api_key) {
+        const anyProviderKeyExists = VALID_PROVIDERS.some(
+          (p) => !!settings[`ai_api_key_${p}` as keyof typeof settings]
+        );
+        if (!anyProviderKeyExists) {
+          // First time: migrate legacy key to this provider
+          apiKey = settings.ai_api_key;
+          updateSetting(`ai_api_key_${provider}`, settings.ai_api_key).catch(() => {});
+        }
+      }
+
       const theme = (["light", "dark", "system"].includes(settings.theme)
         ? settings.theme
         : "system") as ThemeMode;
@@ -191,7 +222,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       applyTheme(theme);
 
       set({
-        apiKey: settings.ai_api_key || "",
+        apiKey,
         provider,
         model,
         theme,
@@ -204,6 +235,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         defaultAction: (settings.default_action === "save" ? "save" : "dismiss") as DefaultAction,
         sensitiveFilterEnabled: settings.sensitive_filter_enabled === "true",
         urlReadingEnabled: settings.url_reading_enabled !== "false",
+        radarIntervalDays: parseInt(settings.radar_interval_days || "3", 10),
         countdownDuration: parseInt(settings.countdown_seconds || "5", 10),
         screenshotDir:
           settings.screenshot_dir ||
@@ -218,15 +250,24 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
 
   setApiKey: (key) => {
+    const { provider } = useSettingsStore.getState();
     set({ apiKey: key });
-    updateSetting("ai_api_key", key).catch((e) =>
+    // Save to provider-specific key
+    updateSetting(`ai_api_key_${provider}`, key).catch((e) =>
       console.error("Failed to save api key:", e)
     );
   },
 
-  setProvider: (provider) => {
+  setProvider: async (provider) => {
     const firstModel = MODELS_BY_PROVIDER[provider][0].id;
-    set({ provider, model: firstModel });
+    // Load the API key for the new provider
+    try {
+      const settings = await getSettings();
+      const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || "";
+      set({ provider, model: firstModel, apiKey: providerKey });
+    } catch {
+      set({ provider, model: firstModel, apiKey: "" });
+    }
     updateSetting("ai_provider", provider).catch((e) =>
       console.error("Failed to save provider:", e)
     );
@@ -292,10 +333,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     );
   },
 
+
   setUrlReadingEnabled: (enabled) => {
     set({ urlReadingEnabled: enabled });
     updateSetting("url_reading_enabled", String(enabled)).catch((e) =>
       console.error("Failed to save url_reading_enabled:", e)
+    );
+  },
+
+  setRadarIntervalDays: (days) => {
+    set({ radarIntervalDays: days });
+    updateSetting("radar_interval_days", String(days)).catch((e) =>
+      console.error("Failed to save radar_interval_days:", e)
     );
   },
 

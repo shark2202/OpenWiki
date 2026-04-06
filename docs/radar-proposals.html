@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 雷达板块方案对比</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #F0EEEC;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-header {
+    text-align: center; padding: 48px 24px 20px;
+  }
+  .page-header h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .page-header h1 span { color: var(--orange); }
+  .page-header p {
+    font-size: 13px; color: var(--stone-500); line-height: 1.6;
+    max-width: 440px; margin: 0 auto;
+  }
+
+  .proposal {
+    max-width: 520px; margin: 0 auto 52px; padding: 0 20px;
+  }
+  .proposal-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px;
+  }
+  .proposal-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--orange); background: var(--orange-light);
+    padding: 3px 10px; border-radius: 4px;
+  }
+  .proposal-title { font-size: 18px; font-weight: 600; }
+  .proposal-desc {
+    font-size: 13px; color: var(--stone-500); line-height: 1.6; margin-bottom: 20px;
+  }
+
+  .divider {
+    max-width: 520px; margin: 0 auto 52px; padding: 0 20px;
+  }
+  .divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--stone-300), transparent);
+  }
+
+  .pick-row { text-align: center; margin-top: 16px; }
+  .pick-btn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--orange); background: var(--orange-light);
+    border: 1.5px solid #FDBA74; padding: 8px 28px;
+    border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .pick-btn:hover {
+    background: var(--orange); color: white; border-color: var(--orange);
+    transform: translateY(-1px); box-shadow: 0 4px 12px rgba(249,115,22,0.25);
+  }
+
+  /* ── Shared ── */
+  .tag-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .tag-dot.core { background: #FB923C; }
+  .tag-dot.secondary { background: #4ADE80; }
+  .tag-dot.emerging { background: #60A5FA; }
+
+  .tag-label {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+  }
+  .tag-label.core { color: #EA580C; }
+  .tag-label.secondary { color: #16A34A; }
+  .tag-label.emerging { color: #2563EB; }
+
+  .trend {
+    font-size: 11px; font-weight: 500; padding: 2px 8px;
+    border-radius: 8px;
+  }
+  .trend.up { background: #F0FDF4; color: #16A34A; }
+  .trend.new { background: #EFF6FF; color: #2563EB; }
+  .trend.stable { background: var(--stone-100); color: var(--stone-500); }
+
+  /* ══════════════════════════════
+     A: 等高简报卡片
+     ══════════════════════════════ */
+  .a-cards { display: flex; flex-direction: column; gap: 12px; }
+
+  .a-card {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid var(--stone-200);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .a-card:hover {
+    border-color: var(--orange-deep);
+    box-shadow: 0 4px 20px rgba(249,115,22,0.08);
+    transform: translateY(-1px);
+  }
+
+  .a-head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  }
+  .a-title {
+    font-size: 16px; font-weight: 600; line-height: 1.4;
+    flex: 1;
+  }
+  .a-findings {
+    list-style: none; padding: 0; margin-bottom: 14px;
+  }
+  .a-findings li {
+    font-size: 13px; color: var(--stone-600); line-height: 1.7;
+    padding-left: 14px; position: relative; margin-bottom: 2px;
+  }
+  .a-findings li::before {
+    content: ''; position: absolute; left: 0; top: 9px;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--stone-300);
+  }
+  .a-suggestion {
+    font-size: 12px; color: var(--orange-deep);
+    background: var(--orange-light);
+    padding: 8px 12px; border-radius: 8px;
+    line-height: 1.6; margin-bottom: 12px;
+  }
+  .a-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 10px; border-top: 1px solid var(--stone-100);
+  }
+  .a-meta-left {
+    font-size: 11px; color: var(--stone-400);
+    display: flex; gap: 10px;
+  }
+  .a-meta-left span { display: flex; align-items: center; gap: 3px; }
+
+  /* ══════════════════════════════
+     B: 焦点 + 列表
+     ══════════════════════════════ */
+  .b-hero {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid var(--stone-200);
+    padding: 24px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .b-hero:hover {
+    border-color: var(--orange-deep);
+    box-shadow: 0 6px 24px rgba(249,115,22,0.1);
+  }
+
+  .b-hero-tag {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  }
+  .b-hero-title {
+    font-size: 20px; font-weight: 700; line-height: 1.4; margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .b-hero-analysis {
+    font-size: 14px; color: var(--stone-600); line-height: 1.8;
+    margin-bottom: 14px;
+  }
+  .b-hero-suggestion {
+    font-size: 13px; color: var(--orange-deep);
+    background: var(--orange-light);
+    padding: 10px 14px; border-radius: 10px;
+    line-height: 1.6; margin-bottom: 14px;
+    border-left: 3px solid var(--orange);
+  }
+  .b-hero-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 10px; border-top: 1px solid var(--stone-100);
+    font-size: 11px; color: var(--stone-400);
+  }
+  .b-hero-meta-left { display: flex; gap: 12px; }
+  .b-hero-meta-left span { display: flex; align-items: center; gap: 3px; }
+
+  .b-list { display: flex; flex-direction: column; gap: 8px; }
+  .b-item {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--stone-200);
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .b-item:hover {
+    border-color: var(--stone-300);
+    background: var(--stone-50);
+  }
+  .b-item-body { flex: 1; min-width: 0; }
+  .b-item-tag {
+    display: flex; align-items: center; gap: 5px; margin-bottom: 3px;
+  }
+  .b-item-title {
+    font-size: 14px; font-weight: 600; line-height: 1.4;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .b-item-finding {
+    font-size: 12px; color: var(--stone-500); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .b-item-right {
+    font-size: 11px; color: var(--stone-400);
+    flex-shrink: 0; text-align: right;
+  }
+  .b-item-arrow {
+    color: var(--stone-300); font-size: 16px; flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════
+     C: 杂志简报
+     ══════════════════════════════ */
+  .c-container {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid var(--stone-200);
+    overflow: hidden;
+  }
+
+  .c-header {
+    padding: 20px 22px 14px;
+    border-bottom: 1px solid var(--stone-100);
+  }
+  .c-header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .c-header-title {
+    font-size: 13px; font-weight: 600; color: var(--stone-500);
+    letter-spacing: 0.04em;
+  }
+  .c-header-date {
+    font-size: 11px; color: var(--stone-400);
+  }
+  .c-header-sub {
+    font-size: 12px; color: var(--stone-400); line-height: 1.5;
+  }
+
+  .c-topic {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--stone-100);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .c-topic:last-child { border-bottom: none; }
+  .c-topic:hover { background: var(--stone-50); }
+
+  .c-topic-head {
+    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px;
+  }
+  .c-topic-rank {
+    font-size: 24px; font-weight: 700; color: var(--stone-200);
+    line-height: 1; flex-shrink: 0; width: 28px; text-align: center;
+  }
+  .c-topic-rank.n1 { color: var(--orange); }
+  .c-topic-info { flex: 1; }
+  .c-topic-tag {
+    display: flex; align-items: center; gap: 5px; margin-bottom: 4px;
+  }
+  .c-topic-title {
+    font-size: 15px; font-weight: 600; line-height: 1.4;
+  }
+  .c-topic-desc {
+    font-size: 13px; color: var(--stone-500); line-height: 1.7;
+    margin-top: 6px;
+  }
+  .c-topic-meta {
+    display: flex; gap: 10px; margin-top: 8px;
+    font-size: 11px; color: var(--stone-400);
+  }
+  .c-topic-meta span { display: flex; align-items: center; gap: 3px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><span>小云</span> 雷达板块方案</h1>
+  <p>雷达是你的私人分析师，分析你最近保存的内容，找出你在关注什么。三种不同的呈现方式。</p>
+</div>
+
+<!-- ═══════════ A: 等高简报卡片 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 A</span>
+    <span class="proposal-title">平等卡片</span>
+  </div>
+  <p class="proposal-desc">每个关注方向一张卡片，平等排列。每张卡片都有完整的标题、发现、建议。适合只有 2-3 个方向时，信息完整且不拥挤。</p>
+
+  <div class="a-cards">
+    <div class="a-card">
+      <div class="a-head">
+        <span class="tag-dot core"></span>
+        <span class="tag-label core">核心关注</span>
+        <span style="flex:1"></span>
+        <span class="trend up">↑ 上升</span>
+      </div>
+      <div class="a-title">你保存的 5 篇内容都指向同一个还没做的决定</div>
+      <ul class="a-findings">
+        <li>最近两周你收藏了 3 篇关于开源的文章，都在回答同一个问题</li>
+        <li>和 2 篇社区运营的内容形成了互补，暗示你在考虑开源路线</li>
+      </ul>
+      <div class="a-suggestion">试着写一份一页纸的开源计划，把你收藏的这些内容串起来，看看是否值得推进。</div>
+      <div class="a-meta">
+        <div class="a-meta-left">
+          <span>📄 12 条内容</span>
+          <span>📅 覆盖 9 天</span>
+        </div>
+        <span class="tag-label core" style="font-size:11px;">点击查看详情 →</span>
+      </div>
+    </div>
+
+    <div class="a-card">
+      <div class="a-head">
+        <span class="tag-dot secondary"></span>
+        <span class="tag-label secondary">次要关注</span>
+        <span style="flex:1"></span>
+        <span class="trend stable">— 稳定</span>
+      </div>
+      <div class="a-title">你一直在围绕「产品设计的减法」收集弹药</div>
+      <ul class="a-findings">
+        <li>4 篇内容都在讲"做少而精"的产品哲学</li>
+        <li>和你核心关注的开源方向有矛盾：开源意味着做多，但你收藏的设计文章都在说做少</li>
+      </ul>
+      <div class="a-meta">
+        <div class="a-meta-left">
+          <span>📄 6 条内容</span>
+          <span>📅 覆盖 11 天</span>
+        </div>
+        <span class="tag-label secondary" style="font-size:11px;">点击查看详情 →</span>
+      </div>
+    </div>
+
+    <div class="a-card">
+      <div class="a-head">
+        <span class="tag-dot emerging"></span>
+        <span class="tag-label emerging">新兴关注</span>
+        <span style="flex:1"></span>
+        <span class="trend new">● 新出现</span>
+      </div>
+      <div class="a-title">这两天突然开始关注 AI Agent 的落地场景</div>
+      <ul class="a-findings">
+        <li>3 天内保存了 3 篇 Agent 相关内容，之前从未关注过这个方向</li>
+      </ul>
+      <div class="a-meta">
+        <div class="a-meta-left">
+          <span>📄 3 条内容</span>
+          <span>📅 覆盖 3 天</span>
+        </div>
+        <span class="tag-label emerging" style="font-size:11px;">点击查看详情 →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 A')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ B: 焦点 + 列表 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 B</span>
+    <span class="proposal-title">焦点 + 列表</span>
+  </div>
+  <p class="proposal-desc">第一个方向大卡片完整展示，其余的压缩成一行列表。重点突出最核心的那个发现，其余只是"还有这些"。</p>
+
+  <!-- Hero -->
+  <div class="b-hero">
+    <div class="b-hero-tag">
+      <span class="tag-dot core"></span>
+      <span class="tag-label core">核心关注</span>
+      <span class="trend up" style="margin-left:8px;">↑ 上升</span>
+    </div>
+    <div class="b-hero-title">你保存的 5 篇内容都指向同一个还没做的决定</div>
+    <div class="b-hero-analysis">最近两周你收藏了 3 篇关于开源的文章，都在回答同一个问题：要不要把小云开源。加上 2 篇社区运营的内容，你其实已经在潜意识里做调研了。</div>
+    <div class="b-hero-suggestion">试着写一份一页纸的开源计划，把收藏的这些内容串起来，看看值不值得推进。</div>
+    <div class="b-hero-meta">
+      <div class="b-hero-meta-left">
+        <span>📄 12 条内容</span>
+        <span>📅 覆盖 9 天</span>
+      </div>
+      <span style="color:var(--orange);">查看详情 →</span>
+    </div>
+  </div>
+
+  <!-- List -->
+  <div class="b-list">
+    <div class="b-item">
+      <div class="b-item-body">
+        <div class="b-item-tag">
+          <span class="tag-dot secondary"></span>
+          <span class="tag-label secondary">次要关注</span>
+          <span class="trend stable" style="margin-left:6px;">— 稳定</span>
+        </div>
+        <div class="b-item-title">你一直在围绕「产品设计的减法」收集弹药</div>
+        <div class="b-item-finding">4 篇内容讲"做少而精"，和开源方向形成有趣矛盾</div>
+      </div>
+      <div class="b-item-right">6 条<br>11 天</div>
+      <div class="b-item-arrow">›</div>
+    </div>
+
+    <div class="b-item">
+      <div class="b-item-body">
+        <div class="b-item-tag">
+          <span class="tag-dot emerging"></span>
+          <span class="tag-label emerging">新兴关注</span>
+          <span class="trend new" style="margin-left:6px;">● 新出现</span>
+        </div>
+        <div class="b-item-title">这两天突然开始关注 AI Agent 的落地场景</div>
+        <div class="b-item-finding">3 天内保存了 3 篇相关内容，之前从未关注</div>
+      </div>
+      <div class="b-item-right">3 条<br>3 天</div>
+      <div class="b-item-arrow">›</div>
+    </div>
+  </div>
+
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 B')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ C: 杂志简报 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 C</span>
+    <span class="proposal-title">杂志简报</span>
+  </div>
+  <p class="proposal-desc">整合成一张"简报"，像翻一份杂志的目录页。用排名数字区分主次，所有方向在同一张卡片里，一次看完。</p>
+
+  <div class="c-container">
+    <div class="c-header">
+      <div class="c-header-top">
+        <span class="c-header-title">注意力简报</span>
+        <span class="c-header-date">基于最近 14 天 · 21 条内容</span>
+      </div>
+      <span class="c-header-sub">分析了你最近两周保存的内容，发现了 3 个关注方向。</span>
+    </div>
+
+    <div class="c-topic">
+      <div class="c-topic-head">
+        <div class="c-topic-rank n1">1</div>
+        <div class="c-topic-info">
+          <div class="c-topic-tag">
+            <span class="tag-dot core"></span>
+            <span class="tag-label core">核心关注</span>
+            <span class="trend up" style="margin-left:6px;">↑ 上升</span>
+          </div>
+          <div class="c-topic-title">你保存的 5 篇内容都指向同一个还没做的决定</div>
+        </div>
+      </div>
+      <div class="c-topic-desc" style="margin-left:40px;">最近两周收藏了 3 篇开源相关文章 + 2 篇社区运营内容，你其实已经在潜意识里做开源调研了。</div>
+      <div class="c-topic-meta" style="margin-left:40px;">
+        <span>📄 12 条内容</span>
+        <span>📅 覆盖 9 天</span>
+      </div>
+    </div>
+
+    <div class="c-topic">
+      <div class="c-topic-head">
+        <div class="c-topic-rank">2</div>
+        <div class="c-topic-info">
+          <div class="c-topic-tag">
+            <span class="tag-dot secondary"></span>
+            <span class="tag-label secondary">次要关注</span>
+            <span class="trend stable" style="margin-left:6px;">— 稳定</span>
+          </div>
+          <div class="c-topic-title">你一直在围绕「产品设计的减法」收集弹药</div>
+        </div>
+      </div>
+      <div class="c-topic-desc" style="margin-left:40px;">4 篇内容都在讲"做少而精"，和开源方向形成有趣矛盾。</div>
+      <div class="c-topic-meta" style="margin-left:40px;">
+        <span>📄 6 条内容</span>
+        <span>📅 覆盖 11 天</span>
+      </div>
+    </div>
+
+    <div class="c-topic">
+      <div class="c-topic-head">
+        <div class="c-topic-rank">3</div>
+        <div class="c-topic-info">
+          <div class="c-topic-tag">
+            <span class="tag-dot emerging"></span>
+            <span class="tag-label emerging">新兴关注</span>
+            <span class="trend new" style="margin-left:6px;">● 新出现</span>
+          </div>
+          <div class="c-topic-title">这两天突然开始关注 AI Agent 的落地场景</div>
+        </div>
+      </div>
+      <div class="c-topic-desc" style="margin-left:40px;">3 天内保存了 3 篇相关内容，之前从未关注过这个方向。</div>
+      <div class="c-topic-meta" style="margin-left:40px;">
+        <span>📄 3 条内容</span>
+        <span>📅 覆盖 3 天</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 C')">我选这个</button></div>
+</div>
+
+<div style="height:60px;"></div>
+</body>
+</html>

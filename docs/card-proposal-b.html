@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 方案 B 优化预览</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-mid: #FDBA74;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+    --red-400: #F87171;
+    --red-500: #EF4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #F0EEEC;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-header {
+    text-align: center;
+    padding: 48px 24px 36px;
+  }
+  .page-header h1 {
+    font-size: 22px; font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .page-header h1 span { color: var(--orange); }
+  .page-header p {
+    font-size: 13px; color: var(--stone-500);
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 580px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid var(--stone-200);
+    padding: 16px 18px 12px;
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    transform: translateY(-1px);
+  }
+
+  /* ── Tags ── */
+  .tags {
+    display: flex; gap: 5px; flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--orange-deep);
+    background: var(--orange-light);
+    padding: 2px 9px;
+    border-radius: 10px;
+  }
+
+  /* ── Summary ── */
+  .summary {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--stone-700);
+  }
+
+  /* ── Image row ── */
+  .img-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 4px;
+  }
+  .thumb {
+    width: 80px; height: 80px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #E7E5E4 0%, #D6D3D1 100%);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    overflow: hidden;
+  }
+  .thumb:hover { transform: scale(1.03); }
+  .thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  .img-body {
+    flex: 1; min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .ocr-hint {
+    font-size: 11px;
+    color: var(--stone-400);
+    margin-top: 6px;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .ocr-hint:hover { color: var(--orange); }
+
+  /* ── Footer ── */
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--stone-100);
+  }
+  .meta {
+    font-size: 11px;
+    color: var(--stone-400);
+    display: flex; gap: 6px; align-items: center;
+  }
+  .meta .sep { color: var(--stone-300); }
+
+  .type-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 3px;
+  }
+  .type-dot.link { background: var(--orange); }
+  .type-dot.image { background: #22C55E; }
+  .type-dot.text { background: #3B82F6; }
+
+  .actions {
+    display: flex; gap: 2px;
+  }
+  .actions button {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 11px;
+    color: var(--stone-400);
+    background: none; border: none; cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .actions button:hover {
+    color: var(--orange);
+    background: var(--orange-light);
+  }
+  .actions button.del:hover {
+    color: var(--red-500);
+    background: #FEF2F2;
+  }
+
+  /* ── Section label ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--stone-400);
+    text-transform: uppercase;
+    padding: 16px 0 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><span>方案 B</span> 优化版</h1>
+  <p>标签醒目 + 摘要清晰 + 图片适当放大 + 删除按钮</p>
+</div>
+
+<div class="container">
+
+  <div class="section-label">链接内容</div>
+
+  <!-- Link Card 1 -->
+  <div class="card">
+    <div class="tags">
+      <span class="tag">旅行</span>
+      <span class="tag">散文诗</span>
+      <span class="tag">生命释然</span>
+    </div>
+    <p class="summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+    <div class="footer">
+      <div class="meta">
+        <span class="type-dot link"></span>
+        <span>1小时前</span>
+        <span class="sep">/</span>
+        <span>WeChat</span>
+      </div>
+      <div class="actions">
+        <button>打开链接</button>
+        <button>复制</button>
+        <button class="del">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link Card 2 -->
+  <div class="card">
+    <div class="tags">
+      <span class="tag">逆向思维选股</span>
+      <span class="tag">情绪周期套利</span>
+    </div>
+    <p class="summary">别人恐惧时要贪婪，但前提是手上有现金能在暴跌时抄底，否则逆向思维只是空谈。</p>
+    <div class="footer">
+      <div class="meta">
+        <span class="type-dot link"></span>
+        <span>3小时前</span>
+        <span class="sep">/</span>
+        <span>Google Chrome</span>
+      </div>
+      <div class="actions">
+        <button>打开链接</button>
+        <button>复制</button>
+        <button class="del">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">图片内容</div>
+
+  <!-- Image Card 1 -->
+  <div class="card">
+    <div class="tags">
+      <span class="tag">开源项目</span>
+      <span class="tag">开源策略</span>
+      <span class="tag">社区共建</span>
+    </div>
+    <div class="img-row">
+      <div class="thumb">🖼</div>
+      <div class="img-body">
+        <p class="summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+        <span class="ocr-hint">识别了 186 字 — 点击查看</span>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="meta">
+        <span class="type-dot image"></span>
+        <span>1小时前</span>
+        <span class="sep">/</span>
+        <span>Claude</span>
+      </div>
+      <div class="actions">
+        <button>AI 对话</button>
+        <button>复制</button>
+        <button class="del">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Card 2 -->
+  <div class="card">
+    <div class="tags">
+      <span class="tag">产品架构</span>
+      <span class="tag">模块拆分</span>
+    </div>
+    <div class="img-row">
+      <div class="thumb" style="background: linear-gradient(135deg, #DBEAFE, #BFDBFE);">📊</div>
+      <div class="img-body">
+        <p class="summary">小云的技术架构图，展示了前端、Rust 后端和 SQLite 之间的数据流转关系。</p>
+        <span class="ocr-hint">识别了 52 字 — 点击查看</span>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="meta">
+        <span class="type-dot image"></span>
+        <span>昨天</span>
+        <span class="sep">/</span>
+        <span>截图</span>
+      </div>
+      <div class="actions">
+        <button>AI 对话</button>
+        <button>复制</button>
+        <button class="del">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">文本内容</div>
+
+  <!-- Text Card -->
+  <div class="card">
+    <div class="tags">
+      <span class="tag">注意力即货币</span>
+      <span class="tag">信息过载应对</span>
+    </div>
+    <p class="summary">你消费的每一条信息都在塑造你的思维模型，所以要像管理投资组合一样管理你的信息输入。</p>
+    <div class="footer">
+      <div class="meta">
+        <span class="type-dot text"></span>
+        <span>2小时前</span>
+        <span class="sep">/</span>
+        <span>备忘录</span>
+      </div>
+      <div class="actions">
+        <button>AI 对话</button>
+        <button>复制</button>
+        <button class="del">删除</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

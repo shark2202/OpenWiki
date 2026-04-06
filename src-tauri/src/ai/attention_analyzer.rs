@@ -2,51 +2,38 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-// --- Data Types ---
+// --- Data Types (v2: Briefing) ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EvidenceItem {
-    pub index: usize,
-    pub snippet: String,
+pub struct BriefingTopic {
+    pub id: String,
+    pub rank: u32,
+    pub insight_title: String,
+    pub deep_analysis: String,
+    pub key_findings: Vec<String>,
+    pub suggestion: Option<String>,
+    pub evidence_indices: Vec<usize>,
+    pub content_count: u32,
+    pub span_days: u32,
+    pub trend: String,
+    pub tag: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EvidenceGroup {
-    pub label: String,
-    pub items: Vec<EvidenceItem>,
+pub struct BriefingMeta {
+    pub total_content: u32,
+    pub window_days: u32,
+    pub analysis_depth: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RecurringThread {
-    pub title: String,
-    pub summary: String,
-    pub evidence: Vec<EvidenceItem>,
+pub struct BriefingAnalysis {
+    pub format_version: u32,
+    pub topics: Vec<BriefingTopic>,
+    pub meta: BriefingMeta,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnexpectedConnection {
-    pub title: String,
-    pub insight: String,
-    pub group_a: EvidenceGroup,
-    pub group_b: EvidenceGroup,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NewObsession {
-    pub title: String,
-    pub first_seen: String,
-    pub intensity: String,
-    pub evidence: Vec<EvidenceItem>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AttentionAnalysis {
-    pub recurring_threads: Vec<RecurringThread>,
-    pub unexpected_connections: Vec<UnexpectedConnection>,
-    pub new_obsessions: Vec<NewObsession>,
-}
-
-// --- Prompt Builder ---
+// --- Prompt Builder (v2: Briefing) ---
 
 /// Build system prompt and user message from content items.
 /// Each item is (id, raw_text, source_url, captured_at).
@@ -55,68 +42,57 @@ pub fn build_prompt(
     items: &[(String, Option<String>, Option<String>, String)],
 ) -> (String, String) {
     let count = items.len();
-    let max_chars: usize = if count <= 20 {
-        1000
-    } else if count <= 50 {
-        600
-    } else if count <= 100 {
-        400
-    } else {
-        300
-    };
+    let max_chars: usize = 500;
 
-    let system_prompt = r#"你是一个注意力分析助手。你的任务是分析用户最近收集的内容，找出三种模式：
+    let system_prompt = r#"你是用户的私人知识分析师。你的核心任务是：找到用户自己没注意到的联系和规律。
 
-1. **recurring_threads**（反复出现的主题）：至少有3条内容涉及同一个话题。找出用户持续关注的主题。
-2. **unexpected_connections**（意想不到的联系）：找出两组看似无关但实际上有隐藏联系的内容。
-3. **new_obsessions**（新的兴趣点）：最近3-5天内出现的新兴趣，之前没有出现过的主题。
+不要给出用户已经知道的信息（如"你关注了 AI"），而是找到令人惊讶的发现。
+
+具体做法：
+1. 找出用户最集中关注的 1-3 个方向（最多 3 个，如果没有明确方向就返回空的 topics 数组）
+2. 对每个方向，找到跨内容的**意外发现**：
+   - 两篇看似不相关的内容之间的隐藏联系
+   - 用户无意识的行为模式（比如"你一直在围绕某个决定收集信息"）
+   - 内容之间的矛盾或有趣对比
+   - 不要复述每篇文章的内容，找到贯穿多篇的意外规律
+3. 对排名第 1 的方向，给出一个具体可行动的建议（suggestion 字段），其他方向 suggestion 设为 null
+4. 生成洞察性标题（不是主题名"AI 产品设计"，而是一个让人想点进去看的发现）
 
 重要规则：
-- 使用内容的**序号**（从0开始的index）来引用内容，不要使用内容ID。
-- 每个evidence item必须包含index（序号）和snippet（内容摘要）。
-- unexpected_connections的group_a和group_b各自包含label和items。
-- 如果某个类别没有发现模式，返回空数组。
+- 使用内容的**序号**（从 0 开始的 index）来引用内容，放在 evidence_indices 数组中
+- topics 数组最多 3 个元素，按重要性排序（rank 1 最重要）
+- 如果内容太分散没有明显方向，返回空的 topics 数组，这完全正常
+- tag 只能是以下值之一："核心关注"、"次要关注"、"新兴关注"、"背景关注"
+- trend 只能是以下值之一："growing"、"emerging"、"stable"、"fading"
 
-请严格按以下JSON格式返回，不要包含其他内容：
+请严格按以下 JSON 格式返回：
 {
-  "recurring_threads": [
+  "format_version": 2,
+  "topics": [
     {
-      "title": "主题标题",
-      "summary": "主题总结",
-      "evidence": [
-        {"index": 0, "snippet": "内容摘要"}
-      ]
+      "id": "topic_1",
+      "rank": 1,
+      "insight_title": "你保存的 3 篇文章指向了同一个你还没做的决定",
+      "deep_analysis": "详细的跨内容分析段落...",
+      "key_findings": ["发现1", "发现2", "发现3"],
+      "suggestion": "具体可行动的建议...",
+      "evidence_indices": [0, 3, 5, 7],
+      "content_count": 12,
+      "span_days": 9,
+      "trend": "growing",
+      "tag": "核心关注"
     }
   ],
-  "unexpected_connections": [
-    {
-      "title": "联系标题",
-      "insight": "联系洞察",
-      "group_a": {
-        "label": "分组A标签",
-        "items": [{"index": 0, "snippet": "内容摘要"}]
-      },
-      "group_b": {
-        "label": "分组B标签",
-        "items": [{"index": 1, "snippet": "内容摘要"}]
-      }
-    }
-  ],
-  "new_obsessions": [
-    {
-      "title": "新兴趣标题",
-      "first_seen": "2024-01-01",
-      "intensity": "高/中/低",
-      "evidence": [
-        {"index": 0, "snippet": "内容摘要"}
-      ]
-    }
-  ]
+  "meta": {
+    "total_content": 42,
+    "window_days": 14,
+    "analysis_depth": "deep"
+  }
 }"#
         .to_string();
 
     let mut content_lines = Vec::with_capacity(count);
-    for (i, (id, raw_text, source_url, captured_at)) in items.iter().enumerate() {
+    for (i, (_id, raw_text, source_url, captured_at)) in items.iter().enumerate() {
         let text = raw_text.as_deref().unwrap_or("[无文本]");
         let truncated = truncate_str(text, max_chars);
         let url_part = source_url
@@ -124,13 +100,13 @@ pub fn build_prompt(
             .map(|u| format!(" | 来源: {}", u))
             .unwrap_or_default();
         content_lines.push(format!(
-            "[{}] (id={}, 时间={}{}) {}",
-            i, id, captured_at, url_part, truncated
+            "[{}] (时间={}{}) {}",
+            i, captured_at, url_part, truncated
         ));
     }
 
     let user_message = format!(
-        "以下是用户最近收集的{}条内容，请分析其中的注意力模式：\n\n{}",
+        "以下是用户最近 14 天收集的 {} 条内容，请深入分析并提炼洞察：\n\n{}",
         count,
         content_lines.join("\n\n")
     );
@@ -148,36 +124,23 @@ fn truncate_str(s: &str, max_chars: usize) -> String {
     }
 }
 
-// --- JSON Validator ---
+// --- JSON Validator (v2: Briefing) ---
 
-/// Parse and validate an AttentionAnalysis JSON string.
-/// Drops evidence items with out-of-bounds index.
-/// Drops threads/connections/obsessions with no remaining evidence.
-pub fn validate_analysis(json_str: &str, item_count: usize) -> Result<AttentionAnalysis, String> {
-    // Try to extract JSON from markdown code blocks if present
+/// Parse and validate a BriefingAnalysis JSON string.
+/// Filters out-of-bounds evidence indices and caps topics at 3.
+pub fn validate_analysis(json_str: &str, item_count: usize) -> Result<BriefingAnalysis, String> {
     let cleaned = extract_json(json_str);
 
-    let mut analysis: AttentionAnalysis = serde_json::from_str(&cleaned)
+    let mut analysis: BriefingAnalysis = serde_json::from_str(&cleaned)
         .map_err(|e| format!("JSON 解析失败: {}", e))?;
 
-    // Filter recurring_threads
-    analysis.recurring_threads.retain_mut(|thread| {
-        thread.evidence.retain(|e| e.index < item_count);
-        !thread.evidence.is_empty()
-    });
+    // Cap topics at 3
+    analysis.topics.truncate(3);
 
-    // Filter unexpected_connections
-    analysis.unexpected_connections.retain_mut(|conn| {
-        conn.group_a.items.retain(|e| e.index < item_count);
-        conn.group_b.items.retain(|e| e.index < item_count);
-        !conn.group_a.items.is_empty() || !conn.group_b.items.is_empty()
-    });
-
-    // Filter new_obsessions
-    analysis.new_obsessions.retain_mut(|obs| {
-        obs.evidence.retain(|e| e.index < item_count);
-        !obs.evidence.is_empty()
-    });
+    // Filter out-of-bounds evidence indices
+    for topic in &mut analysis.topics {
+        topic.evidence_indices.retain(|&idx| idx < item_count);
+    }
 
     Ok(analysis)
 }
@@ -209,6 +172,7 @@ pub enum AnalysisProvider {
     Anthropic,
     OpenAi,
     OpenRouter,
+    DashScope,
 }
 
 impl AnalysisProvider {
@@ -216,6 +180,7 @@ impl AnalysisProvider {
         match s.to_lowercase().as_str() {
             "openai" => AnalysisProvider::OpenAi,
             "openrouter" => AnalysisProvider::OpenRouter,
+            "dashscope" => AnalysisProvider::DashScope,
             _ => AnalysisProvider::Anthropic,
         }
     }
@@ -255,7 +220,11 @@ struct OpenAiRequest {
     messages: Vec<ApiMessage>,
     max_tokens: u32,
     temperature: f32,
-    response_format: ResponseFormat,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<ResponseFormat>,
+    /// DashScope Qwen3 series: disable thinking mode to save time and tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enable_thinking: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -282,6 +251,7 @@ pub async fn call_analysis_api(
     model: &str,
     system_prompt: &str,
     user_message: &str,
+    max_tokens: u32,
 ) -> Result<String, String> {
     let http_client = Client::builder()
         .timeout(Duration::from_secs(120))
@@ -292,7 +262,7 @@ pub async fn call_analysis_api(
         AnalysisProvider::Anthropic => {
             let body = AnthropicRequest {
                 model: model.to_string(),
-                max_tokens: 4096,
+                max_tokens,
                 system: system_prompt.to_string(),
                 messages: vec![ApiMessage {
                     role: "user".to_string(),
@@ -329,31 +299,50 @@ pub async fn call_analysis_api(
                 .map(|c| c.text.clone())
                 .unwrap_or_default())
         }
-        AnalysisProvider::OpenAi | AnalysisProvider::OpenRouter => {
+        AnalysisProvider::OpenAi | AnalysisProvider::OpenRouter | AnalysisProvider::DashScope => {
             let url = match provider {
                 AnalysisProvider::OpenRouter => {
                     "https://openrouter.ai/api/v1/chat/completions"
                 }
+                AnalysisProvider::DashScope => {
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+                }
                 _ => "https://api.openai.com/v1/chat/completions",
+            };
+
+            let mut messages = Vec::new();
+            if !system_prompt.is_empty() {
+                messages.push(ApiMessage {
+                    role: "system".to_string(),
+                    content: system_prompt.to_string(),
+                });
+            }
+            messages.push(ApiMessage {
+                role: "user".to_string(),
+                content: user_message.to_string(),
+            });
+
+            // Only include response_format for native OpenAI — OpenRouter and
+            // DashScope models may not all support JSON mode
+            let response_format = match provider {
+                AnalysisProvider::OpenRouter | AnalysisProvider::DashScope => None,
+                _ => Some(ResponseFormat {
+                    format_type: "json_object".to_string(),
+                }),
+            };
+
+            let enable_thinking = match provider {
+                AnalysisProvider::DashScope => Some(false),
+                _ => None,
             };
 
             let body = OpenAiRequest {
                 model: model.to_string(),
-                messages: vec![
-                    ApiMessage {
-                        role: "system".to_string(),
-                        content: system_prompt.to_string(),
-                    },
-                    ApiMessage {
-                        role: "user".to_string(),
-                        content: user_message.to_string(),
-                    },
-                ],
-                max_tokens: 4096,
+                messages,
+                max_tokens,
                 temperature: 0.3,
-                response_format: ResponseFormat {
-                    format_type: "json_object".to_string(),
-                },
+                response_format,
+                enable_thinking,
             };
 
             let mut req = http_client
@@ -401,93 +390,69 @@ pub async fn call_analysis_api(
 mod tests {
     use super::*;
 
-    fn make_valid_json(max_index: usize) -> String {
+    fn make_valid_briefing_json(evidence_indices: &[usize]) -> String {
+        let indices_str = evidence_indices
+            .iter()
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
         format!(
             r#"{{
-  "recurring_threads": [
+  "format_version": 2,
+  "topics": [
     {{
-      "title": "Rust学习",
-      "summary": "用户持续关注Rust语言",
-      "evidence": [
-        {{"index": 0, "snippet": "Rust所有权"}},
-        {{"index": 1, "snippet": "Rust生命周期"}},
-        {{"index": 2, "snippet": "Rust异步编程"}}
-      ]
+      "id": "topic_1",
+      "rank": 1,
+      "insight_title": "测试洞察标题",
+      "deep_analysis": "测试深度分析",
+      "key_findings": ["发现1", "发现2"],
+      "suggestion": "测试建议",
+      "evidence_indices": [{}],
+      "content_count": 5,
+      "span_days": 7,
+      "trend": "growing",
+      "tag": "核心关注"
     }}
   ],
-  "unexpected_connections": [
-    {{
-      "title": "编程与音乐",
-      "insight": "两者都涉及模式识别",
-      "group_a": {{
-        "label": "编程",
-        "items": [{{"index": 0, "snippet": "代码模式"}}]
-      }},
-      "group_b": {{
-        "label": "音乐",
-        "items": [{{"index": {}, "snippet": "音乐模式"}}]
-      }}
-    }}
-  ],
-  "new_obsessions": [
-    {{
-      "title": "AI绘画",
-      "first_seen": "2024-03-25",
-      "intensity": "高",
-      "evidence": [
-        {{"index": 1, "snippet": "Stable Diffusion"}}
-      ]
-    }}
-  ]
+  "meta": {{
+    "total_content": 10,
+    "window_days": 14,
+    "analysis_depth": "deep"
+  }}
 }}"#,
-            max_index
+            indices_str
         )
     }
 
     #[test]
     fn test_validate_analysis_valid() {
-        let json = make_valid_json(3);
+        let json = make_valid_briefing_json(&[0, 1, 2, 3]);
         let result = validate_analysis(&json, 5);
         assert!(result.is_ok());
         let analysis = result.unwrap();
-        assert_eq!(analysis.recurring_threads.len(), 1);
-        assert_eq!(analysis.recurring_threads[0].evidence.len(), 3);
-        assert_eq!(analysis.unexpected_connections.len(), 1);
-        assert_eq!(analysis.new_obsessions.len(), 1);
+        assert_eq!(analysis.format_version, 2);
+        assert_eq!(analysis.topics.len(), 1);
+        assert_eq!(analysis.topics[0].evidence_indices.len(), 4);
     }
 
     #[test]
     fn test_validate_analysis_out_of_bounds() {
-        // item_count = 2, so index 2 and 3 are out of bounds
-        let json = make_valid_json(3);
-        let result = validate_analysis(&json, 2);
+        let json = make_valid_briefing_json(&[0, 1, 5, 10]);
+        let result = validate_analysis(&json, 3);
         assert!(result.is_ok());
         let analysis = result.unwrap();
-
-        // recurring_threads: index 0, 1 survive; index 2 dropped. Still has evidence.
-        assert_eq!(analysis.recurring_threads.len(), 1);
-        assert_eq!(analysis.recurring_threads[0].evidence.len(), 2);
-
-        // unexpected_connections: group_a index 0 survives, group_b index 3 dropped
-        assert_eq!(analysis.unexpected_connections.len(), 1);
-        assert_eq!(analysis.unexpected_connections[0].group_a.items.len(), 1);
-        assert_eq!(analysis.unexpected_connections[0].group_b.items.len(), 0);
-
-        // new_obsessions: index 1 survives
-        assert_eq!(analysis.new_obsessions.len(), 1);
-        assert_eq!(analysis.new_obsessions[0].evidence.len(), 1);
+        // index 5 and 10 are out of bounds, only 0 and 1 survive
+        assert_eq!(analysis.topics[0].evidence_indices.len(), 2);
+        assert_eq!(analysis.topics[0].evidence_indices, vec![0, 1]);
     }
 
     #[test]
     fn test_validate_analysis_all_out_of_bounds() {
-        // item_count = 0, all indices are out of bounds
-        let json = make_valid_json(3);
-        let result = validate_analysis(&json, 0);
+        let json = make_valid_briefing_json(&[5, 6, 7]);
+        let result = validate_analysis(&json, 3);
         assert!(result.is_ok());
         let analysis = result.unwrap();
-        assert!(analysis.recurring_threads.is_empty());
-        assert!(analysis.unexpected_connections.is_empty());
-        assert!(analysis.new_obsessions.is_empty());
+        assert!(analysis.topics[0].evidence_indices.is_empty());
     }
 
     #[test]
@@ -498,35 +463,51 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_analysis_empty_arrays() {
+    fn test_validate_analysis_empty_topics() {
         let json = r#"{
-            "recurring_threads": [],
-            "unexpected_connections": [],
-            "new_obsessions": []
+            "format_version": 2,
+            "topics": [],
+            "meta": { "total_content": 10, "window_days": 14, "analysis_depth": "deep" }
         }"#;
         let result = validate_analysis(json, 5);
         assert!(result.is_ok());
         let analysis = result.unwrap();
-        assert!(analysis.recurring_threads.is_empty());
-        assert!(analysis.unexpected_connections.is_empty());
-        assert!(analysis.new_obsessions.is_empty());
+        assert!(analysis.topics.is_empty());
+    }
+
+    #[test]
+    fn test_validate_analysis_caps_at_3_topics() {
+        let json = r#"{
+            "format_version": 2,
+            "topics": [
+                { "id": "t1", "rank": 1, "insight_title": "A", "deep_analysis": "", "key_findings": [], "suggestion": null, "evidence_indices": [0], "content_count": 1, "span_days": 1, "trend": "stable", "tag": "核心关注" },
+                { "id": "t2", "rank": 2, "insight_title": "B", "deep_analysis": "", "key_findings": [], "suggestion": null, "evidence_indices": [1], "content_count": 1, "span_days": 1, "trend": "stable", "tag": "次要关注" },
+                { "id": "t3", "rank": 3, "insight_title": "C", "deep_analysis": "", "key_findings": [], "suggestion": null, "evidence_indices": [2], "content_count": 1, "span_days": 1, "trend": "stable", "tag": "新兴关注" },
+                { "id": "t4", "rank": 4, "insight_title": "D", "deep_analysis": "", "key_findings": [], "suggestion": null, "evidence_indices": [3], "content_count": 1, "span_days": 1, "trend": "stable", "tag": "背景关注" }
+            ],
+            "meta": { "total_content": 10, "window_days": 14, "analysis_depth": "deep" }
+        }"#;
+        let result = validate_analysis(json, 10);
+        assert!(result.is_ok());
+        let analysis = result.unwrap();
+        assert_eq!(analysis.topics.len(), 3);
     }
 
     #[test]
     fn test_validate_analysis_markdown_wrapped() {
-        let json = format!("```json\n{}\n```", make_valid_json(2));
+        let json = format!("```json\n{}\n```", make_valid_briefing_json(&[0, 1]));
         let result = validate_analysis(&json, 5);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_build_prompt_truncation_small() {
-        // <=20 items -> 1000 char limit
+    fn test_build_prompt_truncation() {
+        // v2 uses fixed 500 char limit
         let items: Vec<(String, Option<String>, Option<String>, String)> = (0..5)
             .map(|i| {
                 (
                     format!("id-{}", i),
-                    Some("a".repeat(1500)),
+                    Some("a".repeat(1000)),
                     Some(format!("https://example.com/{}", i)),
                     "2024-03-25".to_string(),
                 )
@@ -537,67 +518,8 @@ mod tests {
         assert!(!system.is_empty());
         assert!(user.contains("[0]"));
         assert!(user.contains("[4]"));
-        // Each item text should be truncated to 1000 chars + "..."
-        // The "a".repeat(1500) should become "a".repeat(1000) + "..."
-        assert!(user.contains(&"a".repeat(1000)));
-        assert!(!user.contains(&"a".repeat(1001)));
-    }
-
-    #[test]
-    fn test_build_prompt_truncation_medium() {
-        // 21-50 items -> 600 char limit
-        let items: Vec<(String, Option<String>, Option<String>, String)> = (0..25)
-            .map(|i| {
-                (
-                    format!("id-{}", i),
-                    Some("b".repeat(1000)),
-                    None,
-                    "2024-03-25".to_string(),
-                )
-            })
-            .collect();
-
-        let (_system, user) = build_prompt(&items);
-        assert!(user.contains(&"b".repeat(600)));
-        assert!(!user.contains(&"b".repeat(601)));
-    }
-
-    #[test]
-    fn test_build_prompt_truncation_large() {
-        // 51-100 items -> 400 char limit
-        let items: Vec<(String, Option<String>, Option<String>, String)> = (0..60)
-            .map(|i| {
-                (
-                    format!("id-{}", i),
-                    Some("c".repeat(800)),
-                    None,
-                    "2024-03-25".to_string(),
-                )
-            })
-            .collect();
-
-        let (_system, user) = build_prompt(&items);
-        assert!(user.contains(&"c".repeat(400)));
-        assert!(!user.contains(&"c".repeat(401)));
-    }
-
-    #[test]
-    fn test_build_prompt_truncation_xlarge() {
-        // >100 items -> 300 char limit
-        let items: Vec<(String, Option<String>, Option<String>, String)> = (0..110)
-            .map(|i| {
-                (
-                    format!("id-{}", i),
-                    Some("d".repeat(500)),
-                    None,
-                    "2024-03-25".to_string(),
-                )
-            })
-            .collect();
-
-        let (_system, user) = build_prompt(&items);
-        assert!(user.contains(&"d".repeat(300)));
-        assert!(!user.contains(&"d".repeat(301)));
+        assert!(user.contains(&"a".repeat(500)));
+        assert!(!user.contains(&"a".repeat(501)));
     }
 
     #[test]

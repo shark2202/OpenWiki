@@ -20,6 +20,10 @@ export async function ocrImage(contentId: string): Promise<string> {
   return invoke("ocr_image", { contentId });
 }
 
+export async function getContentsByIds(ids: string[]): Promise<CapturedContent[]> {
+  return invoke("get_contents_by_ids", { ids });
+}
+
 export async function saveSpotlightContent(
   contentType: string,
   rawText: string | null,

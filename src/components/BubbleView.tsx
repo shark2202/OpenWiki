@@ -6,6 +6,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 const DEFAULT_COUNTDOWN = 5;
 const CIRCLE_SIZE = 48;
+const CIRCLE_WIN_H = 64; // Window height for circle mode (48px circle + 16px bounce padding)
 const CAPSULE_W = 320;
 const EXPANDED_H = 140; // Height when expanded with preview + input
 
@@ -67,8 +68,6 @@ export default function BubbleView() {
     clearTimer();
     setSaving(true);
 
-    invoke("debug_log", { message: `[CONFIRM] start, expanded=${expanded}, style=${bubbleStyle}` }).catch(() => {});
-
     try {
       await invoke("confirm_capture", {
         contentType: capture.content_type,
@@ -78,34 +77,31 @@ export default function BubbleView() {
         imagePath: capture.image_path,
         userNote: memo.trim() || null,
       });
-      invoke("debug_log", { message: "[CONFIRM] invoke OK, setting confirmed=true" }).catch(() => {});
     } catch (e) {
-      invoke("debug_log", { message: `[CONFIRM] invoke ERROR: ${e}` }).catch(() => {});
       console.error("confirm failed:", e);
     }
 
-    // ★ If expanded, shrink window back to circle size first
+    // If expanded, shrink window back to circle size first
     if (expanded) {
       try {
         const win = appWindow.current;
         const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
         const scale = await win.scaleFactor();
         const pos = await win.outerPosition();
-        const heightDiff = EXPANDED_H - CIRCLE_SIZE;
+        const heightDiff = EXPANDED_H - CIRCLE_WIN_H;
         await win.setPosition(new LogicalPosition(pos.x / scale, pos.y / scale + heightDiff));
-        await win.setSize(new LogicalSize(CAPSULE_W, CIRCLE_SIZE));
+        await win.setSize(new LogicalSize(CAPSULE_W, CIRCLE_WIN_H));
       } catch {}
     }
 
-    // ★ Shrink back to circle, then show green checkmark
+    // Show confirmed state — no DOM swap, just CSS transitions on existing elements
     setExpanded(false);
     setConfirmed(true);
 
-    // Close window after 1.5 seconds
+    // Close window after 1.2 seconds
     setTimeout(async () => {
-      invoke("debug_log", { message: "[CONFIRM] closing window now" }).catch(() => {});
       try { await appWindow.current.close(); } catch {}
-    }, 1500);
+    }, 1200);
   }, [saving, confirmed, clearTimer, memo, expanded, bubblePosition, bubbleStyle]);
 
   // Expand circle → card with preview + input
@@ -121,7 +117,7 @@ export default function BubbleView() {
       const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
       const scale = await win.scaleFactor();
       const pos = await win.outerPosition();
-      const heightDiff = EXPANDED_H - CIRCLE_SIZE; // 140 - 48 = 92px
+      const heightDiff = EXPANDED_H - CIRCLE_WIN_H; // 140 - 48 = 92px
       // Move window up by the height difference
       await win.setPosition(new LogicalPosition(pos.x / scale, pos.y / scale - heightDiff));
       await win.setSize(new LogicalSize(CAPSULE_W, EXPANDED_H));
@@ -147,9 +143,9 @@ export default function BubbleView() {
       const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
       const scale = await win.scaleFactor();
       const pos = await win.outerPosition();
-      const heightDiff = EXPANDED_H - CIRCLE_SIZE;
+      const heightDiff = EXPANDED_H - CIRCLE_WIN_H;
       await win.setPosition(new LogicalPosition(pos.x / scale, pos.y / scale + heightDiff));
-      await win.setSize(new LogicalSize(CAPSULE_W, CIRCLE_SIZE));
+      await win.setSize(new LogicalSize(CAPSULE_W, CIRCLE_WIN_H));
     } catch {}
   }, [expanded, confirmed]);
 
@@ -253,74 +249,6 @@ export default function BubbleView() {
   const barActionHint = defaultAction === "save" ? `${countdown}s 后自动保存` : `${countdown}s 后自动丢弃`;
 
   // ════════════════════════════════════════════════════════════
-  // ★★★ CONFIRMED STATE: Green checkmark success animation ★★★
-  // This is checked FIRST — nothing else can render once confirmed.
-  // ════════════════════════════════════════════════════════════
-  if (confirmed) {
-    const justify = isRight ? "flex-end" : isLeft ? "flex-start" : "center";
-
-    if (bubbleStyle === "circle") {
-      // ★ Always show green circle (48×48), whether previously expanded or not
-      return (
-        <div
-          className="select-none"
-          style={{
-            width: CAPSULE_W,
-            height: CIRCLE_SIZE,
-            background: "transparent",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: justify,
-          }}
-        >
-          <div
-            style={{
-              width: CIRCLE_SIZE,
-              height: CIRCLE_SIZE,
-              borderRadius: "50%",
-              background: "rgba(22, 163, 74, 0.9)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              boxShadow: "inset 0 0 0 2px rgba(74,222,128,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              animation: "spop 0.4s cubic-bezier(0.34,1.56,0.64,1)",
-            }}
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <style>{`@keyframes spop{0%{transform:scale(0.3);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}`}</style>
-        </div>
-      );
-    } else {
-      // Bar mode → green success bar
-      return (
-        <div className="w-[340px] h-[72px] select-none" style={{ background: "transparent" }}>
-          <div
-            className="relative w-full h-full rounded-2xl overflow-hidden flex items-center justify-center"
-            style={{
-              background: "rgba(22, 163, 74, 0.9)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
-              boxShadow: "0 4px 24px rgba(34, 197, 94, 0.4), inset 0 0 0 1.5px rgba(74,222,128,0.3)",
-              animation: "sfade 0.35s ease-out",
-            }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="ml-2 text-[14px] font-semibold text-white">已保存</span>
-          </div>
-          <style>{`@keyframes sfade{0%{opacity:0;transform:scale(0.95)}100%{opacity:1;transform:scale(1)}}`}</style>
-        </div>
-      );
-    }
-  }
-
-  // ════════════════════════════════════════════════════════════
 
   const progress = pending ? countdown / countdownMax : 0;
   const circumference = 2 * Math.PI * 16;
@@ -359,19 +287,16 @@ export default function BubbleView() {
               width: CAPSULE_W,
               height: EXPANDED_H,
               borderRadius: 16,
-              background: "rgba(15, 15, 30, 0.92)",
-              backdropFilter: "blur(24px)",
-              WebkitBackdropFilter: "blur(24px)",
+              background: "rgb(15, 15, 30)",
               boxShadow: [
                 "0 8px 32px rgba(0, 0, 0, 0.5)",
-                "0 0 12px rgba(99, 102, 241, 0.15)",
+                "0 0 12px rgba(249, 115, 22, 0.15)",
                 "inset 0 1px 0 rgba(255, 255, 255, 0.1)",
                 "inset 0 0 0 1px rgba(255, 255, 255, 0.08)",
               ].join(", "),
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
-              animation: "expandIn 0.3s ease-out",
             }}
           >
             {/* Preview area */}
@@ -427,16 +352,16 @@ export default function BubbleView() {
                 }}
                 placeholder="输入备注... (Enter 保存, Esc 取消)"
                 className="flex-1 bg-white/[0.06] rounded-lg px-2.5 py-1.5 text-[13px] text-white/90 placeholder-white/25
-                           outline-none border border-white/[0.08] focus:border-indigo-400/30 min-w-0"
-                style={{ caretColor: "#818cf8" }}
+                           outline-none border border-white/[0.08] focus:border-orange-400/30 min-w-0"
+                style={{ caretColor: "#F97316" }}
               />
               <button
                 onClick={confirm}
                 disabled={saving}
                 className="h-7 px-3 rounded-lg text-[12px] font-medium
-                           bg-indigo-500/25 hover:bg-indigo-500/40
-                           text-indigo-300 hover:text-indigo-200
-                           border border-indigo-400/15 hover:border-indigo-400/30
+                           bg-orange-500/25 hover:bg-orange-500/40
+                           text-orange-300 hover:text-orange-200
+                           border border-orange-400/15 hover:border-orange-400/30
                            transition-all duration-150 cursor-pointer flex-shrink-0"
               >
                 {saving ? "..." : "保存"}
@@ -453,44 +378,44 @@ export default function BubbleView() {
               </button>
             </div>
           </div>
-          <style>{`
-            @keyframes expandIn {
-              0% { transform: scale(0.8); opacity: 0; border-radius: 24px; }
-              100% { transform: scale(1); opacity: 1; border-radius: 16px; }
-            }
-          `}</style>
         </div>
       );
     }
 
-    // Default circle state with countdown
+    // Default circle state — BOTH countdown and confirmed layers always rendered.
+    // Only opacity changes on confirm — zero DOM add/remove = zero flash.
     return (
       <div
         className="select-none"
         style={{
           width: CAPSULE_W,
-          height: CIRCLE_SIZE,
+          height: CIRCLE_WIN_H,
           background: "transparent",
           display: "flex",
+          alignItems: "center",
           justifyContent: isRight ? "flex-end" : isLeft ? "flex-start" : "center",
         }}
       >
         <div
-          className="relative cursor-pointer"
-          onClick={expandToCapsule}
+          className="relative"
+          onClick={confirmed ? undefined : expandToCapsule}
           style={{
             width: CIRCLE_SIZE,
             height: CIRCLE_SIZE,
             borderRadius: "50%",
-            background: "rgba(15, 15, 30, 0.88)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+            background: confirmed ? "#16A34A" : "rgb(15, 15, 30)",
             boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.1)",
+            cursor: confirmed ? "default" : "pointer",
+            transition: "background 0.3s ease",
+            overflow: "hidden",
           }}
         >
-          <div className="absolute inset-0 flex items-center justify-center">
+          {/* Layer 1: Countdown content — fades out on confirm */}
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ opacity: confirmed ? 0 : 1, transition: "opacity 0.25s ease" }}
+          >
             <div className="relative" style={{ width: 38, height: 38 }}>
-              {/* Countdown ring */}
               <svg className="absolute inset-0 -rotate-90" width="38" height="38" viewBox="0 0 38 38">
                 <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
                 <circle
@@ -502,30 +427,47 @@ export default function BubbleView() {
                 />
                 <defs>
                   <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#818cf8" />
-                    <stop offset="100%" stopColor="#c084fc" />
+                    <stop offset="0%" stopColor="#F97316" />
+                    <stop offset="100%" stopColor="#FDBA74" />
                   </linearGradient>
                 </defs>
               </svg>
-              {/* Icon center */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-sm leading-none">{isImage ? "📷" : isUrl ? "🔗" : "📋"}</span>
               </div>
             </div>
           </div>
 
-          {/* Dismiss X on hover */}
+          {/* Layer 2: Confirmed content — fades in on confirm */}
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ opacity: confirmed ? 1 : 0, transition: "opacity 0.25s ease" }}
+          >
+            {/* Checkmark with draw animation */}
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white"
+              strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+            >
+              <path
+                d="M5 13l4 4L19 7"
+                strokeDasharray="24"
+                strokeDashoffset={confirmed ? "0" : "24"}
+                style={{ transition: "stroke-dashoffset 0.4s ease 0.1s" }}
+              />
+            </svg>
+          </div>
+
+          {/* Dismiss X — always rendered, opacity controlled */}
           <button
             onClick={(e) => { e.stopPropagation(); dismiss(); }}
-            className="absolute rounded-full bg-red-500/80 hover:bg-red-500
-                       flex items-center justify-center
-                       opacity-0 hover:opacity-100 transition-opacity duration-200
-                       shadow-lg cursor-pointer"
+            className={`absolute rounded-full bg-red-500/80 hover:bg-red-500
+                       flex items-center justify-center shadow-lg cursor-pointer
+                       ${confirmed ? "opacity-0 pointer-events-none" : "opacity-0 hover:opacity-100"}`}
             style={{
               width: 16, height: 16,
               top: 0,
               right: isRight ? 0 : undefined,
               left: isLeft ? CIRCLE_SIZE - 16 : undefined,
+              transition: "opacity 0.2s ease",
             }}
           >
             <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -546,11 +488,11 @@ export default function BubbleView() {
 
   const iconBg = isImage
     ? "from-pink-500/20 to-rose-500/20"
-    : "from-indigo-500/20 to-violet-500/20";
+    : "from-orange-500/20 to-amber-500/20";
   const iconEmoji = isImage ? "📷" : isUrl ? "🔗" : "📋";
 
   // Bar mode: click executes default action
-  const barClick = defaultAction === "save" ? confirm : dismiss;
+  const barClick = confirmed ? undefined : (defaultAction === "save" ? confirm : dismiss);
 
   return (
     <div className="w-[340px] h-[72px] select-none" style={{ background: "transparent" }}>
@@ -558,32 +500,32 @@ export default function BubbleView() {
         className="relative w-full h-full rounded-2xl overflow-hidden cursor-pointer group"
         onClick={barClick}
         style={{
-          background: "rgba(15, 15, 30, 0.75)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-          boxShadow: [
+          background: confirmed ? "#16A34A" : "rgb(15, 15, 30)",
+          boxShadow: confirmed ? "none" : [
             "0 8px 32px rgba(0, 0, 0, 0.35)",
-            "0 2px 8px rgba(99, 102, 241, 0.15)",
+            "0 2px 8px rgba(249, 115, 22, 0.15)",
             "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
             "inset 0 0 0 1px rgba(255, 255, 255, 0.06)",
           ].join(", "),
+          transition: "background 0.3s ease",
         }}
       >
         {/* Top shimmer */}
         <div className="absolute inset-x-0 top-0 h-[1px]" style={{
-          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 30%, rgba(139,92,246,0.3) 50%, rgba(255,255,255,0.15) 70%, transparent)",
+          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 30%, rgba(249,115,22,0.3) 50%, rgba(255,255,255,0.15) 70%, transparent)",
         }} />
 
         {/* Bottom progress */}
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-white/[0.03]">
           <div className="h-full transition-all duration-1000 ease-linear" style={{
             width: `${progress * 100}%`,
-            background: "linear-gradient(90deg, #818cf8, #a78bfa, #c084fc)",
+            background: "linear-gradient(90deg, #F97316, #FB923C, #FDBA74)",
           }} />
         </div>
 
-        <div className="relative flex items-center gap-3 h-full px-4">
-          {/* Icon + ring */}
+        {/* Layer 1: Bar countdown content — fades out on confirm */}
+        <div className="relative flex items-center gap-3 h-full px-4"
+          style={{ opacity: confirmed ? 0 : 1, transition: "opacity 0.25s ease" }}>
           <div className="relative w-10 h-10 flex-shrink-0">
             <svg className="absolute inset-0 w-10 h-10 -rotate-90" viewBox="0 0 40 40">
               <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
@@ -592,9 +534,9 @@ export default function BubbleView() {
                 className="transition-all duration-1000 ease-linear" />
               <defs>
                 <linearGradient id="bar-grad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#818cf8" />
-                  <stop offset="50%" stopColor="#a78bfa" />
-                  <stop offset="100%" stopColor="#c084fc" />
+                  <stop offset="0%" stopColor="#F97316" />
+                  <stop offset="50%" stopColor="#FB923C" />
+                  <stop offset="100%" stopColor="#FDBA74" />
                 </linearGradient>
               </defs>
             </svg>
@@ -602,24 +544,20 @@ export default function BubbleView() {
               <span className="text-sm">{iconEmoji}</span>
             </div>
           </div>
-
-          {/* Text */}
           <div className="flex flex-col min-w-0 flex-1 gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-medium text-white/30 uppercase tracking-wider">{pending.source_app}</span>
               <span className="w-[3px] h-[3px] rounded-full bg-white/15" />
-              <span className="text-[10px] text-indigo-400/70">{barActionHint}</span>
+              <span className="text-[10px] text-orange-400/70">{barActionHint}</span>
             </div>
             <span className="text-[13px] font-medium text-white/85 leading-snug truncate">
               {saving ? "保存中..." : barPreview}
             </span>
           </div>
-
-          {/* Actions */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button onClick={(e) => { e.stopPropagation(); confirm(); }} disabled={saving}
-              className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-400/10 hover:border-indigo-400/25 transition-all duration-200 cursor-pointer">
-              <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              className="w-8 h-8 rounded-xl flex items-center justify-center bg-orange-500/15 hover:bg-orange-500/30 border border-orange-400/10 hover:border-orange-400/25 transition-all duration-200 cursor-pointer">
+              <svg className="w-3.5 h-3.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </button>
@@ -630,6 +568,18 @@ export default function BubbleView() {
               </svg>
             </button>
           </div>
+        </div>
+        {/* Layer 2: Bar confirmed content — fades in on confirm */}
+        <div className="absolute inset-0 flex items-center justify-center gap-2"
+          style={{ opacity: confirmed ? 1 : 0, transition: "opacity 0.25s ease" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 13l4 4L19 7"
+              strokeDasharray="24"
+              strokeDashoffset={confirmed ? "0" : "24"}
+              style={{ transition: "stroke-dashoffset 0.4s ease 0.1s" }}
+            />
+          </svg>
+          <span className="text-[14px] font-semibold text-white">已保存</span>
         </div>
       </div>
     </div>

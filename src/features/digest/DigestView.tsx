@@ -86,7 +86,7 @@ export function DigestView() {
           </p>
           <button
             onClick={() => { setShowOnboarding(false); localStorage.setItem("xiaoyun_digest_onboarding_seen", "1"); }}
-            className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline"
+            className="text-xs text-orange-500 dark:text-orange-400 hover:underline"
           >知道了，开始消化</button>
         </div>
       )}

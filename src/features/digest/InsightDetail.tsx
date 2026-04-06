@@ -1,138 +1,189 @@
-import { ArrowLeft, Target, Zap, Sparkles } from "lucide-react";
-import type {
-  RecurringThread,
-  UnexpectedConnection,
-  NewObsession,
-} from "../../services/radarService";
-
-const TYPE_CONFIG = {
-  thread: { color: "#F97316", bg: "#FFF7ED", icon: Target, label: "反复线索" },
-  connection: { color: "#2563EB", bg: "#EFF6FF", icon: Zap, label: "意外联系" },
-  obsession: { color: "#16A34A", bg: "#F0FDF4", icon: Sparkles, label: "新痴迷" },
-} as const;
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
+import type { BriefingTopic } from "../../services/radarService";
+import type { CapturedContent } from "../../types/content";
+import { getContentsByIds } from "../../services/storageService";
+import { FullTextOverlay } from "../content-list/ContentCard";
 
 interface InsightDetailProps {
-  type: "thread" | "connection" | "obsession";
-  data: RecurringThread | UnexpectedConnection | NewObsession;
+  topic: BriefingTopic;
+  idMap: Record<string, string>;
+  contents: CapturedContent[];
   onBack: () => void;
 }
 
-export function InsightDetail({ type, data, onBack }: InsightDetailProps) {
-  const config = TYPE_CONFIG[type];
-  const Icon = config.icon;
+export function InsightDetail({ topic, idMap, contents, onBack }: InsightDetailProps) {
+  const [extraContents, setExtraContents] = useState<CapturedContent[]>([]);
+  const [viewingContent, setViewingContent] = useState<CapturedContent | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const isConnection = type === "connection";
-  const connData = isConnection ? (data as UnexpectedConnection) : null;
-  const evidenceData = !isConnection
-    ? (data as RecurringThread | NewObsession)
-    : null;
+  // Fetch missing content items not in the store
+  useEffect(() => {
+    const missingIds = topic.evidence_indices
+      .map((idx) => idMap[String(idx)])
+      .filter((id): id is string => !!id && !contents.find((c) => c.id === id));
 
-  const evidenceCount = isConnection
-    ? (connData!.group_a.evidence.length + connData!.group_b.evidence.length)
-    : (evidenceData!.evidence.length);
+    if (missingIds.length > 0) {
+      getContentsByIds(missingIds).then(setExtraContents).catch(() => {});
+    }
+  }, [topic.evidence_indices, idMap, contents]);
+
+  const allContents = [...contents, ...extraContents];
+
+  // Resolve evidence indices to actual content items
+  const evidenceItems = topic.evidence_indices.map((idx) => {
+    const contentId = idMap[String(idx)];
+    const item = contentId ? allContents.find((c) => c.id === contentId) : undefined;
+    return { idx, contentId, item };
+  });
+  const tagColor = topic.tag === "核心关注" ? "#FB923C"
+    : topic.tag === "新兴关注" ? "#4ADE80"
+    : "#3B82F6";
 
   return (
-    <div className="space-y-6">
+    <div style={{ color: "var(--color-text-primary)" }}>
       {/* Back button */}
       <button
         onClick={onBack}
-        className="flex items-center gap-1 transition-colors"
-        style={{ fontSize: 13, color: "var(--color-text-muted)" }}
+        className="flex items-center gap-1 mb-5 transition-colors"
+        style={{ fontSize: 13, color: "var(--color-text-secondary)" }}
+        onMouseEnter={(e) => e.currentTarget.style.color = "#FB923C"}
+        onMouseLeave={(e) => e.currentTarget.style.color = "var(--color-text-secondary)"}
       >
-        <ArrowLeft size={14} strokeWidth={2} />
+        <ArrowLeft size={14} />
         返回雷达
       </button>
 
-      {/* Badge */}
-      <span
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full"
-        style={{ backgroundColor: config.bg, color: config.color, fontSize: 12 }}
-      >
-        <Icon size={13} strokeWidth={2} />
-        {config.label}
-      </span>
-
-      {/* Title */}
-      <h1
-        className="font-bold"
-        style={{ fontSize: 24, fontFamily: "'Cabinet Grotesk', sans-serif", color: "var(--color-text-primary)" }}
-      >
-        {data.title}
-      </h1>
-
-      {/* Subtitle */}
-      <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-        过去 14 天 · {evidenceCount} 条相关内容
-      </p>
-
-      {/* AI insight block */}
-      <div
-        className="rounded-xl p-4"
-        style={{ backgroundColor: "var(--color-accent-soft)", border: "1px solid var(--color-border)" }}
-      >
-        <p style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>
-          {data.why_now}
-        </p>
+      {/* Tag */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tagColor }} />
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: tagColor }}>
+          {topic.tag}
+        </span>
       </div>
 
-      {/* Content */}
-      {isConnection && connData ? (
-        /* Dual columns for connection */
-        <div className="grid grid-cols-2 gap-4">
-          <div className="border-l-2 pl-4" style={{ borderColor: "#2563EB" }}>
-            <h3 className="font-semibold mb-3" style={{ fontSize: 14, color: "var(--color-text-primary)" }}>
-              {connData.group_a.topic}
-            </h3>
-            <div className="space-y-3">
-              {connData.group_a.evidence.map((item, i) => (
-                <div key={i}>
-                  <span className="font-mono text-stone-400 block" style={{ fontSize: 11 }}>
-                    {item.date}
-                  </span>
-                  <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-                    {item.title}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border-l-2 pl-4" style={{ borderColor: "#2563EB" }}>
-            <h3 className="font-semibold mb-3" style={{ fontSize: 14 }}>
-              {connData.group_b.topic}
-            </h3>
-            <div className="space-y-3">
-              {connData.group_b.evidence.map((item, i) => (
-                <div key={i}>
-                  <span className="font-mono text-stone-400 block" style={{ fontSize: 11 }}>
-                    {item.date}
-                  </span>
-                  <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
-                    {item.title}
-                  </span>
-                </div>
-              ))}
-            </div>
+      {/* Title */}
+      <h3
+        className="mb-1"
+        style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.3, fontFamily: "'Cabinet Grotesk', sans-serif" }}
+      >
+        {topic.insight_title}
+      </h3>
+
+      {/* Meta */}
+      <p className="mb-6" style={{ fontSize: 12, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {topic.content_count} 条内容 · 持续 {topic.span_days} 天 · {trendLabel(topic.trend)}
+      </p>
+
+      {/* Deep analysis */}
+      <div
+        className="rounded-xl p-4 mb-6"
+        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      >
+        {topic.deep_analysis.split("\n").map((paragraph, i) => (
+          paragraph.trim() ? (
+            <p key={i} className="mb-3 last:mb-0" style={{ fontSize: 14, lineHeight: 1.7, color: "var(--color-text-secondary)" }}>
+              {paragraph}
+            </p>
+          ) : null
+        ))}
+      </div>
+
+      {/* Key findings */}
+      {topic.key_findings.length > 0 && (
+        <div className="mb-6">
+          <h4 className="mb-3" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--color-text-muted)" }}>
+            核心发现
+          </h4>
+          <div className="space-y-2">
+            {topic.key_findings.map((finding, i) => (
+              <div key={i} className="flex gap-2" style={{ fontSize: 13, lineHeight: 1.5, color: "var(--color-text-secondary)" }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 600, color: tagColor, minWidth: 18, paddingTop: 2 }}>
+                  {i + 1}
+                </span>
+                <span>{finding}</span>
+              </div>
+            ))}
           </div>
         </div>
-      ) : evidenceData ? (
-        /* Timeline for thread/obsession */
-        <div className="border-l-2 pl-4 space-y-4" style={{ borderColor: "var(--color-border)" }}>
-          {evidenceData.evidence.map((item, i) => (
-            <div key={i} className="relative">
-              <div
-                className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2"
-                style={{ backgroundColor: "var(--color-surface)", borderColor: config.color }}
-              />
-              <span className="font-mono text-stone-400 block" style={{ fontSize: 11 }}>
-                {item.date}
-              </span>
-              <span className="" style={{ fontSize: 13 }}>
-                {item.title}
-              </span>
-            </div>
-          ))}
+      )}
+
+      {/* Suggestion */}
+      {topic.suggestion && (
+        <div className="rounded-xl p-4 mb-6" style={{ backgroundColor: "var(--color-accent-soft, #431407)", border: "1px solid rgba(251, 146, 60, 0.25)" }}>
+          <div className="mb-1" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "#FB923C" }}>
+            建议
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--color-text-secondary)" }}>
+            {topic.suggestion}
+          </div>
         </div>
-      ) : null}
+      )}
+
+      {/* Evidence: related content items */}
+      {evidenceItems.length > 0 && (
+        <div>
+          <h4 className="mb-3" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--color-text-muted)" }}>
+            相关内容 · {evidenceItems.length} 条
+          </h4>
+          <div>
+            {evidenceItems.map(({ idx, item }) => {
+              const title = item?.summary
+                || item?.raw_text?.slice(0, 80)
+                || item?.source_url
+                || `内容 #${idx}`;
+              const date = item?.captured_at?.slice(0, 10) || "";
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-3 py-3 ${item ? "cursor-pointer hover:bg-white/[0.03] -mx-2 px-2 rounded-lg transition-colors" : ""}`}
+                  style={{ borderBottom: "1px solid var(--color-border)" }}
+                  onClick={item ? () => setViewingContent(item) : undefined}
+                >
+                  <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "'JetBrains Mono', monospace", minWidth: 44, paddingTop: 2, flexShrink: 0 }}>
+                    {date}
+                  </span>
+                  <span style={{ fontSize: 13, color: item ? "var(--color-text-primary)" : "var(--color-text-muted)", lineHeight: 1.4 }}>
+                    {title}{!item?.summary && (item?.raw_text?.length ?? 0) > 80 ? "..." : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {/* Full text overlay portal */}
+      {createPortal(
+        <AnimatePresence>
+          {viewingContent && (
+            <FullTextOverlay
+              content={viewingContent}
+              copied={copied}
+              onCopy={async () => {
+                if (viewingContent.raw_text) {
+                  await navigator.clipboard.writeText(viewingContent.raw_text);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }
+              }}
+              onClose={() => { setViewingContent(null); setCopied(false); }}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
+}
+
+function trendLabel(trend: string): string {
+  switch (trend) {
+    case "growing": return "↑ 持续增长";
+    case "emerging": return "● 新兴";
+    case "stable": return "— 稳定";
+    case "fading": return "↓ 消退";
+    default: return "— 稳定";
+  }
 }

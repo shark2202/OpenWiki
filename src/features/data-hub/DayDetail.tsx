@@ -82,7 +82,7 @@ function WelcomeView() {
       {/* Stats cards */}
       <div className="flex gap-4">
         <div className="glass rounded-2xl p-5 text-center min-w-[120px]">
-          <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+          <div className="text-2xl font-bold text-orange-500">
             {totalItems}
           </div>
           <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
@@ -90,7 +90,7 @@ function WelcomeView() {
           </div>
         </div>
         <div className="glass rounded-2xl p-5 text-center min-w-[120px]">
-          <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+          <div className="text-2xl font-bold text-orange-500">
             {totalDates}
           </div>
           <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">

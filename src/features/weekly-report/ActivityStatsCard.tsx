@@ -43,7 +43,7 @@ export function ActivityStatsCard({ stats, activeFilter, onFilterChange }: Activ
             count={typeCounts.url}
             active={activeFilter === "url"}
             onClick={() => onFilterChange("url")}
-            color="purple"
+            color="orange"
           />
         )}
         {typeCounts.image > 0 && (
@@ -92,11 +92,11 @@ function SegmentTab({
   count: number;
   active: boolean;
   onClick: () => void;
-  color?: "blue" | "purple" | "amber";
+  color?: "blue" | "orange" | "amber";
 }) {
   const activeCountColor: Record<string, string> = {
-    blue: "text-indigo-600 dark:text-indigo-400",
-    purple: "text-purple-600 dark:text-purple-400",
+    blue: "text-orange-600 dark:text-orange-400",
+    orange: "text-orange-600 dark:text-orange-400",
     amber: "text-amber-600 dark:text-amber-400",
   };
 

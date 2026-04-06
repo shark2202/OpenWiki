@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 日期筛选预览</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #EDECEA;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app-frame {
+    width: 900px; margin: 40px auto;
+    background: white; border-radius: 12px;
+    border: 1px solid var(--stone-200);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .title-bar {
+    height: 44px; background: var(--stone-50);
+    border-bottom: 1px solid var(--stone-200);
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    position: relative;
+  }
+  .title-bar .dots {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    display: flex; gap: 7px;
+  }
+  .title-bar .dots span { width: 12px; height: 12px; border-radius: 50%; }
+  .title-bar .dots span:nth-child(1) { background: #EF4444; }
+  .title-bar .dots span:nth-child(2) { background: #F59E0B; }
+  .title-bar .dots span:nth-child(3) { background: #22C55E; }
+  .tab {
+    font-size: 13px; color: var(--stone-400);
+    padding: 8px 14px; border-radius: 8px; cursor: default;
+  }
+  .tab.active { color: var(--orange); font-weight: 500; background: var(--orange-light); }
+
+  .page-body {
+    height: 620px; overflow-y: auto; background: var(--stone-50);
+  }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex; align-items: center;
+    padding: 10px 20px;
+    gap: 6px;
+  }
+
+  .type-filters {
+    display: flex; gap: 4px;
+  }
+  .type-btn {
+    font-size: 12px; color: var(--stone-500); padding: 5px 12px;
+    border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+    background: none; font-family: 'Noto Sans SC', sans-serif;
+    transition: all 0.15s;
+  }
+  .type-btn:hover { background: var(--stone-100); }
+  .type-btn.active {
+    color: var(--orange); background: var(--orange-light);
+    border-color: rgba(249,115,22,0.15);
+  }
+  .type-btn .icon { font-size: 14px; }
+  .type-btn .count { color: var(--stone-400); font-size: 11px; }
+
+  .spacer { flex: 1; }
+
+  /* ── Date filter buttons ── */
+  .date-filters {
+    display: flex; gap: 3px; align-items: center;
+  }
+  .date-btn {
+    font-size: 11px; color: var(--stone-500); padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--stone-200);
+    cursor: pointer; background: white;
+    font-family: 'Noto Sans SC', sans-serif;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .date-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .date-btn.active {
+    color: white; background: var(--orange); border-color: var(--orange);
+  }
+
+  .date-sep {
+    width: 1px; height: 16px; background: var(--stone-200);
+    margin: 0 4px;
+  }
+
+  .export-btn {
+    font-size: 11px; color: var(--stone-400); padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--stone-200);
+    cursor: pointer; background: white;
+    font-family: 'Noto Sans SC', sans-serif;
+    transition: all 0.15s;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .export-btn:hover { border-color: var(--orange); color: var(--orange); }
+
+  /* ── Capture status ── */
+  .capture-status {
+    font-size: 11px; color: #22C55E;
+    display: flex; align-items: center; gap: 4px;
+    margin-left: 6px;
+  }
+  .capture-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #22C55E;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* ── Content cards ── */
+  .content-area { padding: 4px 20px 20px; }
+
+  .card {
+    background: white; border-radius: 14px; border: 1px solid var(--stone-200);
+    padding: 16px 20px 12px; margin-bottom: 10px;
+    transition: all 0.2s ease; cursor: pointer;
+  }
+  .card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.04); }
+  .card-row { display: flex; gap: 12px; align-items: flex-start; }
+  .card-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0; margin-top: 1px;
+  }
+  .card-icon.link { background: #FFF7ED; }
+  .card-icon.image { background: #F0FDF4; }
+  .card-icon.text { background: #EFF6FF; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-tags { display: flex; gap: 4px; margin-bottom: 8px; }
+  .card-tag {
+    font-size: 11px; font-weight: 500;
+    color: var(--orange-deep); background: var(--orange-light);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .card-summary { font-size: 14px; color: var(--stone-700); line-height: 1.75; }
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--stone-100);
+    font-size: 11px; color: var(--stone-400);
+  }
+  .card-meta { display: flex; gap: 6px; align-items: center; }
+  .fresh { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .fresh.g { background: #22C55E; }
+  .fresh.y { background: #FACC15; }
+  .fresh.o { background: #FDBA74; }
+  .card-actions { display: flex; gap: 4px; }
+  .card-actions button {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 11px; color: var(--stone-400); background: none;
+    border: none; cursor: pointer; padding: 3px 7px; border-radius: 5px;
+  }
+  .card-actions button:hover { color: var(--orange); background: var(--orange-light); }
+  .card-actions button.del:hover { color: #EF4444; background: #FEF2F2; }
+
+  .card-note {
+    margin-top: 8px; padding: 6px 10px; border-radius: 8px;
+    background: rgba(249,115,22,0.05); border: 1px solid rgba(249,115,22,0.1);
+    font-size: 12px; color: var(--orange-deep); line-height: 1.5;
+    display: flex; align-items: flex-start; gap: 5px;
+  }
+
+  /* Image card variant */
+  .img-row { display: flex; gap: 12px; align-items: flex-start; }
+  .thumb {
+    width: 80px; height: 80px; border-radius: 10px;
+    background: linear-gradient(135deg, #E7E5E4, #D6D3D1);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .img-body { flex: 1; min-width: 0; }
+  .ocr-hint { font-size: 11px; color: var(--stone-400); margin-top: 4px; }
+
+  /* Export dropdown mock */
+  .export-dropdown {
+    position: absolute; right: 20px; top: 46px;
+    background: white; border-radius: 12px;
+    border: 1px solid var(--stone-200);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+    padding: 8px; width: 220px; z-index: 10;
+    display: none;
+  }
+  .export-dropdown.show { display: block; }
+  .export-dropdown .ed-title {
+    font-size: 11px; font-weight: 600; color: var(--stone-400);
+    padding: 6px 10px 4px; letter-spacing: 0.04em;
+  }
+  .export-dropdown .ed-item {
+    font-size: 13px; color: var(--stone-700); padding: 8px 10px;
+    border-radius: 8px; cursor: pointer; transition: all 0.1s;
+  }
+  .export-dropdown .ed-item:hover {
+    background: var(--orange-light); color: var(--orange-deep);
+  }
+  .export-dropdown .ed-item .sub {
+    font-size: 11px; color: var(--stone-400); margin-top: 1px;
+  }
+  .export-dropdown .ed-sep {
+    height: 1px; background: var(--stone-100); margin: 4px 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-frame">
+  <div class="title-bar">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="tab active">内容</div>
+    <div class="tab">雷达</div>
+    <div class="tab">设置</div>
+  </div>
+
+  <div class="page-body" style="position:relative;">
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <div class="type-filters">
+        <button class="type-btn active"><span class="icon">📋</span>全部 <span class="count">50</span></button>
+        <button class="type-btn"><span class="icon">📝</span>文本 <span class="count">4</span></button>
+        <button class="type-btn"><span class="icon">🖼</span>图片 <span class="count">17</span></button>
+        <button class="type-btn"><span class="icon">🔗</span>链接 <span class="count">29</span></button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="date-filters">
+        <button class="date-btn active">今天</button>
+        <button class="date-btn">近一周</button>
+        <button class="date-btn">半个月</button>
+        <button class="date-btn">📅 选日期</button>
+      </div>
+
+      <div class="date-sep"></div>
+
+      <button class="export-btn" onclick="document.querySelector('.export-dropdown').classList.toggle('show')">
+        ↗ 导出
+      </button>
+
+      <div class="capture-status">
+        <span class="capture-dot"></span>
+        捕获中
+      </div>
+    </div>
+
+    <!-- Export dropdown -->
+    <div class="export-dropdown">
+      <div class="ed-title">导出为 Markdown</div>
+      <div class="ed-item">
+        导出今天
+        <div class="sub">4月5日 · 3 条内容</div>
+      </div>
+      <div class="ed-item">
+        导出当前筛选
+        <div class="sub">今天 · 全部类型 · 3 条</div>
+      </div>
+      <div class="ed-sep"></div>
+      <div class="ed-item">
+        📅 选择日期范围导出
+        <div class="sub">弹出日历选择起止日期</div>
+      </div>
+      <div class="ed-sep"></div>
+      <div class="ed-item">
+        导出全部
+        <div class="sub">所有内容 · 50 条</div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content-area">
+      <div class="card"><div class="card-row">
+        <div class="card-icon link">🔗</div>
+        <div class="card-body">
+          <div class="card-tags"><span class="card-tag">无API操控电脑</span><span class="card-tag">OCR防发错人</span></div>
+          <div class="card-summary">教你用AI在Mac上全自动发微信，不用官方API也能跑通。从搜人、发消息到防发错人、解决中文乱码，全套实操和避坑指南都在这</div>
+          <div class="card-footer">
+            <div class="card-meta"><span class="fresh g"></span>3 小时前<span style="color:var(--stone-300)">/</span>Google Chrome</div>
+            <div class="card-actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="card"><div class="card-row">
+        <div class="card-icon link">🔗</div>
+        <div class="card-body">
+          <div class="card-tags"><span class="card-tag">原油库存红线</span><span class="card-tag">海峡封锁推演</span></div>
+          <div class="card-summary">摩根大通推演了海峡封锁后的原油库存：5月就会触及安全红线。就算立刻停火，航运和设施修复也得大半年，这期间只能靠高油价硬扛需求</div>
+          <div class="card-footer">
+            <div class="card-meta"><span class="fresh g"></span>5 小时前<span style="color:var(--stone-300)">/</span>WeChat</div>
+            <div class="card-actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="card"><div class="card-row">
+        <div class="card-icon link">🔗</div>
+        <div class="card-body">
+          <div class="card-tags"><span class="card-tag">浏览器状态复用</span><span class="card-tag">应用命令行化</span></div>
+          <div class="card-summary">放弃繁琐的API对接，直接复用浏览器登录态将应用转为命令行，是打破智能体操控壁垒、实现零门槛自动化的最优路径</div>
+          <div class="card-note">💬 可以集成在我们小云的软件上</div>
+          <div class="card-footer">
+            <div class="card-meta"><span class="fresh g"></span>5 小时前<span style="color:var(--stone-300)">/</span>WeChat</div>
+            <div class="card-actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="card"><div class="card-row">
+        <div class="card-icon image">🖼</div>
+        <div class="card-body">
+          <div class="card-tags"><span class="card-tag">开源策略</span><span class="card-tag">社区共建</span></div>
+          <div class="img-row">
+            <div class="thumb">📊</div>
+            <div class="img-body">
+              <div class="card-summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议</div>
+              <div class="ocr-hint">识别了 186 字</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-meta"><span class="fresh g"></span>6 小时前<span style="color:var(--stone-300)">/</span>Claude</div>
+            <div class="card-actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="card"><div class="card-row">
+        <div class="card-icon text">📝</div>
+        <div class="card-body">
+          <div class="card-tags"><span class="card-tag">注意力即货币</span><span class="card-tag">信息过载应对</span></div>
+          <div class="card-summary">你消费的每一条信息都在塑造你的思维模型，所以要像管理投资组合一样管理你的信息输入</div>
+          <div class="card-footer">
+            <div class="card-meta"><span class="fresh y"></span>昨天 18:30<span style="color:var(--stone-300)">/</span>备忘录</div>
+            <div class="card-actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+
+<div style="text-align:center; padding: 24px; font-size:13px; color:var(--stone-400);">
+  点击右上角"↗ 导出"按钮查看导出下拉菜单效果
+</div>
+
+<div style="height:40px;"></div>
+</body>
+</html>

@@ -83,10 +83,10 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
             onClick={handleExportAll}
             disabled={isExporting}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl border
-                       bg-gradient-to-r from-indigo-500/10 to-purple-500/10 dark:from-indigo-500/15 dark:to-purple-500/15
-                       border-indigo-300/60 dark:border-indigo-500/30
-                       text-indigo-700 dark:text-indigo-400
-                       hover:from-indigo-500/15 hover:to-purple-500/15 dark:hover:from-indigo-500/20 dark:hover:to-purple-500/20
+                       bg-orange-500/10 dark:bg-orange-500/15
+                       border-orange-300/60 dark:border-orange-500/30
+                       text-orange-700 dark:text-orange-400
+                       hover:bg-orange-500/15 dark:hover:bg-orange-500/20
                        disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all duration-150"
           >

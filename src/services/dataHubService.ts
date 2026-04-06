@@ -32,6 +32,16 @@ export async function exportDateRange(
   return invoke<number>("export_date_range_markdown", { start, end });
 }
 
+/** Export all content into a single markdown file. Returns file path. Reveals in Finder automatically. */
+export async function exportAllSingle(): Promise<string> {
+  return invoke<string>("export_all_single");
+}
+
+/** Export a date range into a single markdown file. Returns file path. Reveals in Finder automatically. */
+export async function exportRangeSingle(start: string, end: string): Promise<string> {
+  return invoke<string>("export_range_single", { start, end });
+}
+
 export async function getExportDir(): Promise<string> {
   return invoke<string>("get_export_dir");
 }

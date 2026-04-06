@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 内容捕获流程</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --orange-50: #FFF7ED;
+    --orange-100: #FFEDD5;
+    --orange-200: #FED7AA;
+    --orange-300: #FDBA74;
+    --orange-400: #FB923C;
+    --orange-500: #F97316;
+    --orange-600: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+    --stone-900: #1C1917;
+    --green-500: #22C55E;
+    --green-600: #16A34A;
+    --red-400: #F87171;
+    --red-500: #EF4444;
+    --blue-400: #60A5FA;
+    --blue-500: #3B82F6;
+    --purple-400: #C084FC;
+    --purple-500: #A855F7;
+    --teal-400: #2DD4BF;
+    --teal-500: #14B8A6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    background: var(--stone-50);
+    color: var(--stone-800);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250, 250, 249, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--stone-200);
+    padding: 20px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-title {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .header-title .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--orange-500);
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
+  }
+  .header-title h1 {
+    font-size: 18px; font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .header-title h1 span { color: var(--orange-500); }
+  .header-sub {
+    font-size: 13px; color: var(--stone-400);
+    font-weight: 300;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 24px; padding: 16px 40px;
+    border-bottom: 1px solid var(--stone-100);
+    background: var(--stone-50);
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--stone-500);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 3px;
+  }
+  .legend-dot.green { background: var(--green-500); }
+  .legend-dot.orange { background: var(--orange-400); }
+  .legend-dot.red { background: var(--red-500); }
+
+  /* Canvas */
+  .canvas {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 120px;
+    position: relative;
+  }
+
+  /* Trunk line */
+  .trunk {
+    position: absolute;
+    left: 50%; top: 48px; bottom: 120px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--orange-300), var(--stone-200));
+    transform: translateX(-50%);
+    z-index: 0;
+  }
+
+  /* Step node */
+  .step {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 24px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeUp 0.6s ease forwards;
+  }
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-card {
+    background: white;
+    border: 1px solid var(--stone-200);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .step-card:hover {
+    border-color: var(--orange-300);
+    box-shadow: 0 4px 20px rgba(249, 115, 22, 0.08);
+    transform: translateY(-2px);
+  }
+  .step-card.expanded {
+    border-color: var(--orange-400);
+    box-shadow: 0 8px 30px rgba(249, 115, 22, 0.12);
+  }
+
+  .step-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 22px;
+  }
+
+  .step-number {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+  .step-number.green { background: var(--green-500); }
+  .step-number.orange { background: var(--orange-400); }
+  .step-number.red { background: var(--red-500); }
+  .step-number.blue { background: var(--blue-500); }
+  .step-number.purple { background: var(--purple-500); }
+  .step-number.teal { background: var(--teal-500); }
+
+  .step-info { flex: 1; min-width: 0; }
+  .step-title {
+    font-size: 16px; font-weight: 600;
+    letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .step-subtitle {
+    font-size: 13px; color: var(--stone-400);
+    margin-top: 3px; font-weight: 300;
+  }
+
+  .step-timing {
+    font-size: 11px; font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--stone-100);
+    color: var(--stone-500);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .step-chevron {
+    width: 20px; height: 20px;
+    color: var(--stone-300);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+  .step-card.expanded .step-chevron {
+    transform: rotate(180deg);
+    color: var(--orange-500);
+  }
+
+  /* Details panel */
+  .step-details {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .step-card.expanded .step-details {
+    max-height: 800px;
+  }
+
+  .details-inner {
+    padding: 0 22px 20px;
+    border-top: 1px solid var(--stone-100);
+    margin-top: 0;
+    padding-top: 16px;
+  }
+
+  .detail-section {
+    margin-bottom: 14px;
+  }
+  .detail-section:last-child { margin-bottom: 0; }
+
+  .detail-label {
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--stone-400);
+    margin-bottom: 6px;
+  }
+  .detail-text {
+    font-size: 13px; line-height: 1.7;
+    color: var(--stone-600);
+  }
+
+  .detail-list {
+    list-style: none;
+    padding: 0;
+  }
+  .detail-list li {
+    font-size: 13px; line-height: 1.7;
+    color: var(--stone-600);
+    padding-left: 16px;
+    position: relative;
+  }
+  .detail-list li::before {
+    content: '';
+    position: absolute; left: 0; top: 10px;
+    width: 6px; height: 6px;
+    border-radius: 2px;
+    background: var(--orange-300);
+  }
+
+  /* Warning box */
+  .warning-box {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 10px;
+  }
+  .warning-box .label {
+    font-size: 11px; font-weight: 600;
+    color: var(--red-500);
+    margin-bottom: 4px;
+  }
+  .warning-box .text {
+    font-size: 12px; color: #991B1B;
+    line-height: 1.6;
+  }
+
+  /* Branch section */
+  .branch-container {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 24px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeUp 0.6s ease forwards;
+  }
+
+  .branch-label {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .branch-label span {
+    display: inline-block;
+    background: var(--orange-100);
+    color: var(--orange-600);
+    font-size: 12px; font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 20px;
+  }
+
+  .branch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .branch-card {
+    background: white;
+    border: 1px solid var(--stone-200);
+    border-radius: 14px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .branch-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .branch-card.expanded {
+    border-color: var(--orange-400);
+    box-shadow: 0 6px 24px rgba(249, 115, 22, 0.1);
+  }
+
+  .branch-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    margin-bottom: 12px;
+  }
+  .branch-icon.text-icon { background: #EFF6FF; }
+  .branch-icon.image-icon { background: #F0FDF4; }
+  .branch-icon.url-icon { background: #FFF7ED; }
+
+  .branch-title {
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .branch-sub {
+    font-size: 12px; color: var(--stone-400);
+    line-height: 1.5;
+  }
+  .branch-timing {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: var(--stone-100);
+    color: var(--stone-500);
+  }
+
+  .branch-details {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.4s ease;
+  }
+  .branch-card.expanded .branch-details {
+    max-height: 600px;
+  }
+  .branch-details-inner {
+    padding-top: 14px;
+    margin-top: 14px;
+    border-top: 1px solid var(--stone-100);
+  }
+
+  /* Connector dots */
+  .connector {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .connector-dot {
+    width: 8px; height: 8px;
+    background: var(--orange-300);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+
+  .connector-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 0;
+    position: relative;
+    z-index: 1;
+  }
+  .connector-arrow .line {
+    width: 2px; height: 16px;
+    background: var(--stone-300);
+  }
+  .connector-arrow .arrow {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--stone-300);
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .branch-grid { grid-template-columns: 1fr; }
+    .header { padding: 16px 20px; }
+    .legend { padding: 12px 20px; flex-wrap: wrap; gap: 12px; }
+    .canvas { padding: 32px 16px 80px; }
+    .step-header { padding: 14px 16px; }
+    .details-inner { padding: 0 16px 16px; padding-top: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <div class="dot"></div>
+    <h1><span>小云</span> 内容捕获流程</h1>
+  </div>
+  <div class="header-sub">点击每个步骤查看详情</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot green"></div>稳定运行</div>
+  <div class="legend-item"><div class="legend-dot orange"></div>偶尔出问题</div>
+  <div class="legend-item"><div class="legend-dot red"></div>常见故障点</div>
+</div>
+
+<div class="canvas">
+  <div class="trunk"></div>
+
+  <!-- Step 1: Clipboard Detection -->
+  <div class="step" style="animation-delay: 0.1s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number green">1</div>
+        <div class="step-info">
+          <div class="step-title">剪贴板监听</div>
+          <div class="step-subtitle">检测你复制的内容</div>
+        </div>
+        <div class="step-timing">&lt; 0.5 秒</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">它在做什么</div>
+            <div class="detail-text">小云每隔 0.5 秒检查一次你的剪贴板，看你有没有复制新内容。就像一个安静的助理一直在旁边等着。</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">它能检测到</div>
+            <ul class="detail-list">
+              <li>文字内容（文本、链接）</li>
+              <li>图片内容（截图、复制的图片）</li>
+              <li>来自哪个 App（微信、Chrome、Safari 等）</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">你感受到的</div>
+            <div class="detail-text">完全无感。你正常复制东西，小云在后台默默检测。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Step 2: Dedup -->
+  <div class="step" style="animation-delay: 0.2s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number green">2</div>
+        <div class="step-info">
+          <div class="step-title">去重过滤</div>
+          <div class="step-subtitle">避免重复保存相同内容</div>
+        </div>
+        <div class="step-timing">瞬间</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">它在做什么</div>
+            <div class="detail-text">检查这个内容是不是 3 秒内刚保存过。比如你截图的时候，剪贴板和截图目录可能同时触发，小云只保留一份。</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">去重方式</div>
+            <ul class="detail-list">
+              <li>文字：对比前 64 个字符</li>
+              <li>图片：对比尺寸（宽 x 高）+ 文件路径</li>
+              <li>已保存过的内容（数据库 hash 比对）</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">你感受到的</div>
+            <div class="detail-text">无感。重复内容被静默丢弃，不会弹出气泡。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Step 3: Mode Check -->
+  <div class="step" style="animation-delay: 0.3s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number green">3</div>
+        <div class="step-info">
+          <div class="step-title">确认 / 自动</div>
+          <div class="step-subtitle">根据你的设置决定怎么处理</div>
+        </div>
+        <div class="step-timing">~0.15 秒</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">两种模式</div>
+            <ul class="detail-list">
+              <li><strong>确认模式（默认）</strong>：弹出一个小气泡，等你点击确认才保存。倒计时结束后自动消失（默认丢弃）</li>
+              <li><strong>自动模式</strong>：所有复制的内容直接保存，不需要你操作</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">气泡窗口</div>
+            <div class="detail-text">气泡出现在屏幕角落，不会抢走你正在用的 App 的焦点。你可以在设置里选择气泡的样式（圆形/长条）和位置（六个方向）。</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">你感受到的</div>
+            <div class="detail-text">确认模式下：屏幕右下角出现一个小气泡，显示你刚复制的内容预览。点击气泡 = 保存，不管它 = 丢弃。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Step 4: Save to DB -->
+  <div class="step" style="animation-delay: 0.4s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number green">4</div>
+        <div class="step-info">
+          <div class="step-title">保存到本地数据库</div>
+          <div class="step-subtitle">内容安全地存在你的电脑上</div>
+        </div>
+        <div class="step-timing">&lt; 50 毫秒</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">它在做什么</div>
+            <ul class="detail-list">
+              <li>生成一个唯一 ID</li>
+              <li>自动判断内容类型：纯文本、链接、还是图片</li>
+              <li>如果是链接，提取出干净的 URL</li>
+              <li>如果是图片，复制到专用文件夹 + 生成缩略图</li>
+              <li>记录来源 App、时间、大小</li>
+              <li>再次检查是否重复（数据库级别）</li>
+              <li>写入本地 SQLite 数据库</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">你感受到的</div>
+            <div class="detail-text">内容出现在小云主窗口的「内容」列表里。此时链接类型会显示"读取中..."，因为正文还没抓取。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Branch: Content Processing -->
+  <div class="branch-container" style="animation-delay: 0.5s">
+    <div class="branch-label">
+      <span>第 5 步：内容处理（根据类型分三条路）</span>
+    </div>
+    <div class="branch-grid">
+
+      <!-- Text Branch -->
+      <div class="branch-card" onclick="toggle(this)">
+        <div class="branch-icon text-icon">📝</div>
+        <div class="branch-title">纯文本</div>
+        <div class="branch-sub">复制的文字段落、笔记等</div>
+        <div class="branch-timing">无需处理</div>
+        <div class="branch-details">
+          <div class="branch-details-inner">
+            <div class="detail-section">
+              <div class="detail-label">处理方式</div>
+              <div class="detail-text">文字内容不需要额外处理，直接进入下一步（AI 分析）。保存时已经存好了原文。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image Branch -->
+      <div class="branch-card" onclick="toggle(this)">
+        <div class="branch-icon image-icon">🖼️</div>
+        <div class="branch-title">图片</div>
+        <div class="branch-sub">截图、复制的图片</div>
+        <div class="branch-timing">1-3 秒</div>
+        <div class="branch-details">
+          <div class="branch-details-inner">
+            <div class="detail-section">
+              <div class="detail-label">处理方式</div>
+              <div class="detail-text">用 macOS 系统的 Vision 框架做 OCR（光学字符识别），把图片里的文字提取出来。</div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">结果</div>
+              <ul class="detail-list">
+                <li>成功：图片下方会显示识别出的文字</li>
+                <li>失败：图片里没有文字（纯照片），静默跳过</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- URL Branch -->
+      <div class="branch-card" onclick="toggle(this)">
+        <div class="branch-icon url-icon">🔗</div>
+        <div class="branch-title">链接</div>
+        <div class="branch-sub">微信文章、网页、推文等</div>
+        <div class="branch-timing">2-15 秒</div>
+        <div class="branch-details">
+          <div class="branch-details-inner">
+            <div class="detail-section">
+              <div class="detail-label">处理方式</div>
+              <div class="detail-text">根据链接来源选择最优的读取方式：</div>
+              <ul class="detail-list" style="margin-top:6px">
+                <li><strong>微信文章</strong>：直接抓 HTML，尝试两种提取方式（传统格式 + 新格式）</li>
+                <li><strong>Twitter/X</strong>：通过 fxtwitter API 获取</li>
+                <li><strong>其他网页</strong>：通过 Jina Reader 阅读</li>
+              </ul>
+            </div>
+            <div class="warning-box">
+              <div class="label">常见问题</div>
+              <div class="text">
+                微信文章有时读不出正文（新版动态渲染格式）。Jina Reader 可能被微信人机验证挡住。此时只能拿到标题。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Step 6: AI Analysis -->
+  <div class="step" style="animation-delay: 0.6s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number orange">6</div>
+        <div class="step-info">
+          <div class="step-title">AI 生成标签 + 摘要</div>
+          <div class="step-subtitle">用 AI 分析内容，生成标签和一句话摘要</div>
+        </div>
+        <div class="step-timing">3-10 秒</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">触发条件</div>
+            <ul class="detail-list">
+              <li>内容长度 ≥ 6 字节（约 2 个中文字）</li>
+              <li>AI API Key 已配置</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">它在做什么</div>
+            <div class="detail-text">
+              把完整内容发给你配置的 AI 模型（阿里云百炼/OpenRouter/Anthropic/OpenAI），让它通读全文后返回：
+            </div>
+            <ul class="detail-list" style="margin-top:6px">
+              <li><strong>2-4 个标签</strong>：主题词 + 内容类型 + 价值点</li>
+              <li><strong>一句话摘要</strong>：不超过 50 字的中文摘要</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">你感受到的</div>
+            <div class="detail-text">内容卡片上先显示"AI 分析中..."（闪烁的标签），几秒后变成真正的标签和摘要。</div>
+          </div>
+          <div class="warning-box">
+            <div class="label">常见问题</div>
+            <div class="text">
+              <strong>没有 API Key</strong>：静默跳过，不生成标签。<br>
+              <strong>429 限流</strong>：免费模型排队太多，换个模型试试。<br>
+              <strong>402 余额不足</strong>：OpenRouter 余额用完了。<br>
+              <strong>模型不兼容</strong>：部分模型不支持 JSON 返回格式。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector-arrow"><div class="line"></div><div class="arrow"></div></div>
+
+  <!-- Step 7: Frontend Display -->
+  <div class="step" style="animation-delay: 0.7s">
+    <div class="step-card" onclick="toggle(this)">
+      <div class="step-header">
+        <div class="step-number green">7</div>
+        <div class="step-info">
+          <div class="step-title">界面显示更新</div>
+          <div class="step-subtitle">内容列表自动刷新，展示最终结果</div>
+        </div>
+        <div class="step-timing">&lt; 0.1 秒</div>
+        <svg class="step-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="step-details">
+        <div class="details-inner">
+          <div class="detail-section">
+            <div class="detail-label">刷新时机</div>
+            <div class="detail-text">小云监听三个信号，收到任何一个就自动刷新内容列表：</div>
+            <ul class="detail-list" style="margin-top:6px">
+              <li><strong>网页读取完成</strong> → 显示正文预览或错误信息</li>
+              <li><strong>OCR 识别完成</strong> → 图片下方显示识别文字</li>
+              <li><strong>AI 标签摘要完成</strong> → 显示标签 + 一句话摘要</li>
+            </ul>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">最终显示状态</div>
+            <ul class="detail-list">
+              <li><strong>链接</strong>：标题 + 标签 + 摘要 + "展开原文"按钮</li>
+              <li><strong>图片</strong>：缩略图 + OCR 文字 + 标签</li>
+              <li><strong>文本</strong>：原文预览 + 标签 + 摘要</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- End -->
+  <div class="connector"><div class="connector-dot"></div></div>
+  <div style="text-align:center; padding: 20px 0; position:relative; z-index:1; opacity:0; animation: fadeUp 0.6s ease 0.8s forwards;">
+    <div style="display:inline-block; background:var(--orange-100); color:var(--orange-600); font-size:13px; font-weight:500; padding:8px 20px; border-radius:20px;">
+      完成 — 内容安全保存在你的电脑上
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggle(el) {
+  el.classList.toggle('expanded');
+}
+</script>
+
+</body>
+</html>

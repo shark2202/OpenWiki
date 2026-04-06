@@ -108,6 +108,15 @@ impl UrlReader {
             }
         }
 
+        // Xiaohongshu: extract from SSR JSON in HTML
+        if clean_url.contains("xiaohongshu.com/") || clean_url.contains("xhslink.com/") {
+            log::info!("[Xiaohongshu] SSR 提取: {}", clean_url);
+            match self.fetch_xiaohongshu(clean_url).await {
+                Ok(r) => return Ok(r),
+                Err(e) => log::warn!("[Xiaohongshu] 失败 ({}), 尝试 Jina", e),
+            }
+        }
+
         // ── General: Jina Reader → direct HTML fallback ──
         log::info!("[Jina] 通用读取: {}", clean_url);
         match self.fetch_via_jina(clean_url).await {
@@ -129,7 +138,7 @@ impl UrlReader {
         let html = self.get_html(url).await?;
         let title = extract_wechat_title(&html);
 
-        // Try js_content div first (standard articles)
+        // Try js_content div first (traditional articles)
         let content = extract_wechat_content(&html);
 
         if content.len() >= MIN_CONTENT_LENGTH {
@@ -138,14 +147,42 @@ impl UrlReader {
             return Ok(UrlReadResult { content: markdown, title });
         }
 
+        // Try content_noencode (newer format: content stored in JS variable)
+        let noencode = extract_wechat_content_noencode(&html);
+        if noencode.len() >= MIN_CONTENT_LENGTH {
+            let markdown = format_with_title(&title, &truncate_content(noencode));
+            log::info!("[WeChat] 成功 (content_noencode): {} chars, title={:?}", markdown.len(), title);
+            return Ok(UrlReadResult { content: markdown, title });
+        }
+
         // Fallback: og:description (for appmsg_type=9 short articles, shares, etc.)
-        log::info!("[WeChat] js_content too short, trying og:description fallback");
+        log::info!("[WeChat] js_content/noencode too short, trying og:description fallback");
         if let Some(desc) = extract_og_description(&html) {
             if desc.len() >= MIN_CONTENT_LENGTH {
                 let decoded = desc.replace("\\x0a", "\n").replace("\\x26amp;amp;", "&");
                 let markdown = format_with_title(&title, &truncate_content(decoded));
                 log::info!("[WeChat] 成功 (og:description): {} chars, title={:?}", markdown.len(), title);
                 return Ok(UrlReadResult { content: markdown, title });
+            }
+        }
+
+        // Fallback: try Jina Reader (some JS-rendered articles need headless browser)
+        log::info!("[WeChat] HTML 抓取失败, 尝试 Jina Reader");
+        if let Ok(jina_result) = self.fetch_via_jina(url).await {
+            if jina_result.content.len() >= MIN_CONTENT_LENGTH {
+                log::info!("[WeChat] 成功 (Jina fallback): {} chars", jina_result.content.len());
+                return Ok(jina_result);
+            }
+        }
+
+        // Last resort: return title as content (better than "读取失败")
+        if let Some(ref t) = title {
+            if !t.is_empty() {
+                log::info!("[WeChat] 仅获取到标题: {:?}", title);
+                return Ok(UrlReadResult {
+                    content: t.clone(),
+                    title,
+                });
             }
         }
 
@@ -507,6 +544,58 @@ impl UrlReader {
 
     // ─── Jina Reader ───────────────────────────────────────────────
 
+    /// Xiaohongshu: fetch HTML with mobile UA, extract title + desc from SSR JSON.
+    async fn fetch_xiaohongshu(&self, url: &str) -> Result<UrlReadResult, String> {
+        // Clean URL: keep only the note path, strip share tracking params
+        let clean = if let Some(pos) = url.find("/explore/") {
+            let base = &url[..pos + 9]; // ".../explore/"
+            let rest = &url[pos + 9..];
+            let note_id = rest.split('?').next().unwrap_or(rest);
+            // Keep xsec params needed for access
+            let xsec = url.find("xsec_token=")
+                .map(|start| {
+                    let token_part = &url[start..];
+                    let end = token_part.find('&').unwrap_or(token_part.len());
+                    format!("?xsec_source=app_share&{}", &token_part[..end])
+                })
+                .unwrap_or_default();
+            format!("{}{}{}", base, note_id, xsec)
+        } else {
+            url.to_string()
+        };
+
+        let response = self.http_client
+            .get(&clean)
+            .header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1")
+            .header("Accept", "text/html")
+            .send()
+            .await
+            .map_err(|e| format!("小红书请求失败: {}", e))?;
+
+        let html = response.text().await
+            .map_err(|e| format!("读取小红书响应失败: {}", e))?;
+
+        // Extract title from SSR JSON: "title":"..."
+        let title = extract_json_string_field(&html, "title");
+
+        // Extract desc from SSR JSON: "desc":"..."
+        let desc = extract_json_string_field(&html, "desc");
+
+        if let Some(content) = desc {
+            if !content.is_empty() {
+                // Unescape \n \t
+                let content = content.replace("\\n", "\n").replace("\\t", " ");
+                log::info!("[Xiaohongshu] 提取成功: {} chars, title={:?}", content.len(), title);
+                return Ok(UrlReadResult {
+                    content,
+                    title,
+                });
+            }
+        }
+
+        Err("小红书笔记内容提取失败".to_string())
+    }
+
     async fn fetch_via_jina(&self, url: &str) -> Result<UrlReadResult, String> {
         let jina_url = format!("{}{}", JINA_READER_BASE, url);
 
@@ -744,58 +833,51 @@ async fn translate_chunk(client: &Client, text: &str) -> Result<String, String> 
 }
 
 /// Strip Markdown syntax, keep clean plain text.
+/// Light cleanup of Markdown: remove noise (images, raw links, code blocks)
+/// but KEEP structural elements (headings, lists, blockquotes, paragraphs).
 fn strip_markdown(input: &str) -> String {
     use regex::Regex;
 
     let mut s = input.to_string();
 
+    // ── Remove noise ──
+
     // Images: ![alt](url) → remove entirely
     let re_img = Regex::new(r"!\[[^\]]*\]\([^)]*\)").unwrap();
     s = re_img.replace_all(&s, "").to_string();
 
-    // Links: [text](url) → text
+    // Links: [text](url) → text (keep the text, drop the URL)
     let re_link = Regex::new(r"\[([^\]]*)\]\([^)]*\)").unwrap();
     s = re_link.replace_all(&s, "$1").to_string();
-
-    // Headings: ## Title → Title
-    let re_heading = Regex::new(r"(?m)^#{1,6}\s+").unwrap();
-    s = re_heading.replace_all(&s, "").to_string();
-
-    // Bold/italic: **text** / *text* / __text__ / _text_ → text
-    let re_bold = Regex::new(r"\*{1,3}([^*]+)\*{1,3}").unwrap();
-    s = re_bold.replace_all(&s, "$1").to_string();
-    let re_under = Regex::new(r"_{1,3}([^_]+)_{1,3}").unwrap();
-    s = re_under.replace_all(&s, "$1").to_string();
-
-    // Strikethrough: ~~text~~ → text
-    let re_strike = Regex::new(r"~~([^~]+)~~").unwrap();
-    s = re_strike.replace_all(&s, "$1").to_string();
-
-    // Inline code: `code` → code
-    let re_code = Regex::new(r"`([^`]+)`").unwrap();
-    s = re_code.replace_all(&s, "$1").to_string();
 
     // Code blocks: ```...``` → remove
     let re_codeblock = Regex::new(r"(?s)```[^\n]*\n.*?```").unwrap();
     s = re_codeblock.replace_all(&s, "").to_string();
 
-    // Horizontal rules: --- / *** / ___ → remove
-    let re_hr = Regex::new(r"(?m)^[\s]*([-*_]){3,}\s*$").unwrap();
-    s = re_hr.replace_all(&s, "").to_string();
+    // Inline code: `code` → code
+    let re_code = Regex::new(r"`([^`]+)`").unwrap();
+    s = re_code.replace_all(&s, "$1").to_string();
 
-    // Blockquotes: > text → text
-    let re_quote = Regex::new(r"(?m)^>\s?").unwrap();
-    s = re_quote.replace_all(&s, "").to_string();
+    // Strikethrough: ~~text~~ → text
+    let re_strike = Regex::new(r"~~([^~]+)~~").unwrap();
+    s = re_strike.replace_all(&s, "$1").to_string();
 
-    // List markers: - item / * item / 1. item → item
-    let re_ul = Regex::new(r"(?m)^[\s]*[-*+]\s+").unwrap();
-    s = re_ul.replace_all(&s, "").to_string();
-    let re_ol = Regex::new(r"(?m)^[\s]*\d+\.\s+").unwrap();
-    s = re_ol.replace_all(&s, "").to_string();
+    // Bold/italic markers: **text** → text, *text* → text (keep text, remove markers)
+    let re_bold = Regex::new(r"\*{1,3}([^*]+)\*{1,3}").unwrap();
+    s = re_bold.replace_all(&s, "$1").to_string();
+    let re_under = Regex::new(r"_{1,3}([^_]+)_{1,3}").unwrap();
+    s = re_under.replace_all(&s, "$1").to_string();
 
     // HTML tags: <br>, <p>, etc → remove
     let re_html = Regex::new(r"<[^>]+>").unwrap();
     s = re_html.replace_all(&s, "").to_string();
+
+    // Horizontal rules: --- / *** / ___ → newline separator
+    let re_hr = Regex::new(r"(?m)^[\s]*([-*_]){3,}\s*$").unwrap();
+    s = re_hr.replace_all(&s, "\n").to_string();
+
+    // ── KEEP structural elements (headings, lists, blockquotes) ──
+    // These are NOT stripped — they stay in the text for frontend rendering.
 
     // Collapse 3+ consecutive newlines → 2
     let re_lines = Regex::new(r"\n{3,}").unwrap();
@@ -833,6 +915,23 @@ fn extract_markdown_title(markdown: &str) -> Option<String> {
 
 // ─── WeChat helpers ────────────────────────────────────────────────
 
+/// Extract item_show_type from WeChat HTML (0=article, 5=video, 7=gallery, 8=image, 10=channels video)
+fn extract_wechat_show_type(html: &str) -> Option<u32> {
+    // item_show_type = "10" or item_show_type = '10'
+    for pat in &["item_show_type = \"", "item_show_type = '"] {
+        if let Some(start) = html.find(pat) {
+            let rest = &html[start + pat.len()..];
+            let end = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            if end > 0 {
+                if let Ok(n) = rest[..end].parse::<u32>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn extract_wechat_title(html: &str) -> Option<String> {
     // msg_title = '...' (single quotes)
     if let Some(start) = html.find("msg_title = '") {
@@ -851,6 +950,55 @@ fn extract_wechat_title(html: &str) -> Option<String> {
         }
     }
     extract_og_title(html)
+}
+
+/// Extract article content from `content_noencode: JsDecode('...')` in newer WeChat format.
+/// The content uses \x0a for newlines and contains HTML tags.
+fn extract_wechat_content_noencode(html: &str) -> String {
+    let marker = "content_noencode: JsDecode('";
+    let start_idx = match html.find(marker) {
+        Some(idx) => idx + marker.len(),
+        None => return String::new(),
+    };
+
+    let rest = &html[start_idx..];
+    // Find the closing ')  — the pattern is JsDecode('...')
+    let end_idx = match rest.find("')") {
+        Some(idx) => idx,
+        None => return String::new(),
+    };
+
+    let raw = &rest[..end_idx];
+
+    // Decode hex escapes: \x0a → newline, \x26 → &, \x3c → <, \x3e → >, etc.
+    let decoded = raw
+        .replace("\\x0a", "\n")
+        .replace("\\x0d", "")
+        .replace("\\x26", "&")
+        .replace("\\x27", "'")
+        .replace("\\x22", "\"")
+        .replace("\\x3c", "<")
+        .replace("\\x3e", ">");
+
+    // Strip HTML tags
+    let mut result = String::new();
+    let mut in_tag = false;
+    for ch in decoded.chars() {
+        if result.len() > MAX_CONTENT_LENGTH { break; }
+        match ch {
+            '<' => in_tag = true,
+            '>' => { in_tag = false; }
+            '\n' => { if !result.ends_with('\n') { result.push('\n'); } }
+            _ => { if !in_tag { result.push(ch); } }
+        }
+    }
+
+    let text = html_decode(&result);
+    text.lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn extract_wechat_content(html: &str) -> String {
@@ -1200,4 +1348,27 @@ fn extract_youtube_description(html: &str) -> Option<String> {
         .and_then(|c| c.get(1))
         .map(|m| html_decode(m.as_str()))
         .filter(|s| !s.is_empty())
+}
+
+/// Extract a string field value from SSR JSON embedded in HTML.
+/// Looks for "field":"value" pattern, handles escaped quotes.
+fn extract_json_string_field(html: &str, field: &str) -> Option<String> {
+    let pattern = format!("\"{}\":\"", field);
+    let start = html.find(&pattern)? + pattern.len();
+    let rest = &html[start..];
+    // Find closing quote (not escaped)
+    let mut end = 0;
+    let chars: Vec<char> = rest.chars().collect();
+    while end < chars.len() {
+        if chars[end] == '"' && (end == 0 || chars[end - 1] != '\\') {
+            break;
+        }
+        end += 1;
+    }
+    if end == 0 || end >= chars.len() {
+        return None;
+    }
+    let value: String = chars[..end].iter().collect();
+    let value = value.replace("\\\"", "\"");
+    if value.is_empty() { None } else { Some(value) }
 }

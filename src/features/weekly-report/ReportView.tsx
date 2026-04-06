@@ -850,7 +850,7 @@ function StatsCard({ report }: { report: WeeklyReport }) {
           </span>
         )}
         {typeCounts.url > 0 && (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-50 dark:bg-purple-500/10 text-purple-500 dark:text-purple-400">
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-50 dark:bg-orange-500/10 text-orange-500 dark:text-orange-400">
             {typeCounts.url} 链接
           </span>
         )}

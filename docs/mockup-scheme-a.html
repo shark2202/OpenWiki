@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案 A — 日期筛选条</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0C0A09;
+    --surface: #1C1917;
+    --surface-raised: #292524;
+    --border: #3D3935;
+    --text-primary: #FAFAF8;
+    --text-secondary: #A8A29E;
+    --text-muted: #78716C;
+    --accent: #FB923C;
+    --accent-soft: #431407;
+    --accent-hover: #EA580C;
+    --success: #16A34A;
+    --error: #DC2626;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ========= Top Title Bar ========= */
+  .titlebar {
+    height: 44px;
+    background: rgba(28, 25, 23, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+
+  .traffic-lights {
+    display: flex;
+    gap: 7px;
+    margin-right: 16px;
+  }
+
+  .traffic-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+
+  .td-red { background: #FF5F57; }
+  .td-yellow { background: #FFBD2E; }
+  .td-green { background: #28C840; }
+
+  .app-title {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+    margin-right: auto;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 2px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .nav-tab {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.15s;
+  }
+
+  .nav-tab:hover {
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .nav-tab.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .nav-tab .tab-icon { font-size: 13px; }
+
+  /* ========= Main Content ========= */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  /* ========= NEW: Date filter row ========= */
+  .date-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .date-chip {
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid transparent;
+    background: rgba(255,255,255,0.03);
+  }
+
+  .date-chip:hover {
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.06);
+  }
+
+  .date-chip.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: rgba(251,146,60,0.2);
+  }
+
+  .date-spacer { flex: 1; }
+
+  .export-btn {
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .export-btn:hover {
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+  }
+
+  /* ========= Existing: Type filter tabs ========= */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 0 2px;
+  }
+
+  .type-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .type-tab {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .type-tab:hover { color: var(--text-secondary); }
+
+  .type-tab.active {
+    color: var(--accent);
+    background: rgba(255,255,255,0.08);
+  }
+
+  .type-tab .tab-count {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 99px;
+  }
+
+  .type-tab.active .tab-count {
+    background: rgba(251,146,60,0.15);
+    color: var(--accent);
+  }
+
+  .type-tab:not(.active) .tab-count {
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted);
+  }
+
+  .capture-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .capture-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ========= Content Cards (faithful to current) ========= */
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  }
+
+  .card-main {
+    padding: 16px 20px 12px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .type-icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .type-icon-box.text { background: rgba(59,130,246,0.1); }
+  .type-icon-box.url { background: rgba(249,115,22,0.1); }
+  .type-icon-box.image { background: rgba(34,197,94,0.1); }
+
+  .card-body { flex: 1; min-width: 0; }
+
+  .card-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+
+  .tag {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .card-summary {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #e7e5e4;
+  }
+
+  .card-preview {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .age-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 20px 12px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    margin: 0 0 0 0;
+  }
+
+  .action-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .action-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-primary);
+  }
+
+  .action-btn.primary {
+    border-color: rgba(251,146,60,0.25);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .action-btn.primary:hover {
+    background: rgba(251,146,60,0.2);
+  }
+
+  /* Image row in card */
+  .image-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+
+  .image-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .ocr-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* URL loading state */
+  .url-link {
+    color: var(--accent);
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  /* User note */
+  .user-note {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(249,115,22,0.06);
+    border-left: 2px solid rgba(251,146,60,0.3);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* ========= Annotation callouts ========= */
+  .annotation {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .annotation-label {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(251,146,60,0.2);
+    border-radius: 6px;
+    padding: 3px 10px;
+    margin-bottom: 6px;
+  }
+
+  .annotation-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Title bar with top nav (faithful to current app) -->
+<div class="titlebar">
+  <div class="traffic-lights">
+    <div class="traffic-dot td-red"></div>
+    <div class="traffic-dot td-yellow"></div>
+    <div class="traffic-dot td-green"></div>
+  </div>
+  <span class="app-title">小云</span>
+  <div class="nav-tabs">
+    <div class="nav-tab active"><span class="tab-icon">📋</span> 内容</div>
+    <div class="nav-tab"><span class="tab-icon">◎</span> 雷达</div>
+    <div class="nav-tab"><span class="tab-icon">⚙</span> 设置</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- NEW: Date filter row -->
+  <div class="annotation">
+    <div class="annotation-label">新增</div>
+    <span class="annotation-desc">日期快捷筛选 + 导出按钮，这是唯一新增的 UI</span>
+  </div>
+  <div class="date-filter-row">
+    <div class="date-chip active">全部时间</div>
+    <div class="date-chip">今天</div>
+    <div class="date-chip">本周</div>
+    <div class="date-chip">本月</div>
+    <div class="date-chip" style="display:flex;align-items:center;gap:3px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      选择日期
+    </div>
+    <div class="date-spacer"></div>
+    <div class="export-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      导出
+    </div>
+  </div>
+
+  <!-- Existing: Type filter tabs (unchanged) -->
+  <div class="annotation">
+    <div class="annotation-label">不变</div>
+    <span class="annotation-desc">原有的类型筛选和捕获状态保持不动</span>
+  </div>
+  <div class="filter-bar">
+    <div class="type-tabs">
+      <div class="type-tab active">
+        <span>📋</span> 全部 <span class="tab-count">128</span>
+      </div>
+      <div class="type-tab">
+        <span>📝</span> 文本 <span class="tab-count">65</span>
+      </div>
+      <div class="type-tab">
+        <span>🖼️</span> 图片 <span class="tab-count">38</span>
+      </div>
+      <div class="type-tab">
+        <span>🔗</span> 链接 <span class="tab-count">25</span>
+      </div>
+    </div>
+    <div class="capture-status">
+      <span class="capture-dot"></span>
+      捕获中
+    </div>
+  </div>
+
+  <!-- Content cards (unchanged from current app) -->
+  <div class="annotation">
+    <div class="annotation-label">不变</div>
+    <span class="annotation-desc">卡片样式、操作按钮完全保持现有设计</span>
+  </div>
+
+  <!-- Card: URL type -->
+  <div class="card">
+    <div class="card-main">
+      <div class="type-icon-box url">🔗</div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">AI</span>
+          <span class="tag">产品设计</span>
+        </div>
+        <p class="card-summary">深度解析：AI Agent 架构的三种主流模式对比，从 ReAct 到 Plan-and-Execute</p>
+        <div class="card-meta">
+          <span class="age-dot" style="background:var(--success)"></span>
+          5 分钟前 · Safari
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <div class="action-btn primary">AI 对话</div>
+      <div class="action-btn">打开链接</div>
+      <div class="action-btn">复制</div>
+      <div class="action-btn">删除</div>
+    </div>
+  </div>
+
+  <!-- Card: Image type -->
+  <div class="card">
+    <div class="card-main">
+      <div class="type-icon-box image">🖼️</div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">设计稿</span>
+          <span class="tag">UI</span>
+        </div>
+        <div class="image-row">
+          <div style="width:80px;height:80px;border-radius:10px;background:var(--surface-raised);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:24px;flex-shrink:0;">🖼</div>
+          <div class="image-info">
+            <p class="card-summary">新版数据面板的线框图，包含侧边栏导航和卡片网格布局</p>
+            <span class="ocr-count">识别了 342 字</span>
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="age-dot" style="background:var(--success)"></span>
+          20 分钟前 · 截图
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <div class="action-btn primary">AI 对话</div>
+      <div class="action-btn">复制</div>
+      <div class="action-btn">删除</div>
+    </div>
+  </div>
+
+  <!-- Card: Text type -->
+  <div class="card">
+    <div class="card-main">
+      <div class="type-icon-box text">📝</div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">工作</span>
+          <span class="tag">会议</span>
+        </div>
+        <p class="card-summary">下周产品评审会议议程：1. 数据导出功能复盘 2. 雷达分析优化 3. 新用户引导流程</p>
+        <div class="card-meta">
+          <span class="age-dot" style="background:#CA8A04"></span>
+          1 天前 · 微信
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <div class="action-btn primary">AI 对话</div>
+      <div class="action-btn">复制</div>
+      <div class="action-btn">删除</div>
+    </div>
+  </div>
+
+  <!-- Card: URL type -->
+  <div class="card">
+    <div class="card-main">
+      <div class="type-icon-box url">🔗</div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">开源</span>
+          <span class="tag">Rust</span>
+        </div>
+        <p class="card-summary">Tauri 2.0 发布公告：新的插件系统、改进的 IPC 性能和跨平台 API</p>
+        <div class="card-meta">
+          <span class="age-dot" style="background:#CA8A04"></span>
+          1 天前 · Arc
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <div class="action-btn primary">AI 对话</div>
+      <div class="action-btn">打开链接</div>
+      <div class="action-btn">复制</div>
+      <div class="action-btn">删除</div>
+    </div>
+  </div>
+
+  <!-- Card: Text with user note -->
+  <div class="card">
+    <div class="card-main">
+      <div class="type-icon-box text">📝</div>
+      <div class="card-body">
+        <div class="card-tags">
+          <span class="tag">灵感</span>
+        </div>
+        <p class="card-summary">用户可能需要一个"回顾"模式，像 Day One 那样按周/月浏览自己的知识碎片</p>
+        <div class="user-note">备注: 这个想法很好，下次讨论加上</div>
+        <div class="card-meta">
+          <span class="age-dot" style="background:var(--text-muted)"></span>
+          2 天前 · 备忘录
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <div class="action-btn primary">AI 对话</div>
+      <div class="action-btn">复制</div>
+      <div class="action-btn">删除</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

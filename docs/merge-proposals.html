@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 数据+内容融合方案</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #EDECEA;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-header {
+    text-align: center; padding: 44px 24px 16px;
+  }
+  .page-header h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .page-header h1 span { color: var(--orange); }
+  .page-header p {
+    font-size: 13px; color: var(--stone-500); line-height: 1.6;
+    max-width: 480px; margin: 0 auto;
+  }
+
+  .context-box {
+    max-width: 900px; margin: 0 auto 32px; padding: 0 20px;
+  }
+  .context-inner {
+    background: white; border-radius: 12px; border: 1px solid var(--stone-200);
+    padding: 16px 20px;
+  }
+  .context-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--stone-700); }
+  .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ctx-col h4 { font-size: 12px; font-weight: 600; color: var(--stone-500); margin-bottom: 4px; }
+  .ctx-col ul { list-style: none; padding: 0; }
+  .ctx-col li {
+    font-size: 12px; color: var(--stone-600); line-height: 1.7;
+    padding-left: 12px; position: relative;
+  }
+  .ctx-col li::before {
+    content: ''; position: absolute; left: 0; top: 8px;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--stone-300);
+  }
+  .ctx-col li.unique::before { background: var(--orange); }
+
+  .proposal-section {
+    max-width: 900px; margin: 0 auto 48px; padding: 0 20px;
+  }
+  .proposal-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px;
+  }
+  .proposal-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--orange); background: var(--orange-light);
+    padding: 3px 10px; border-radius: 4px;
+  }
+  .proposal-title { font-size: 18px; font-weight: 600; }
+  .proposal-desc {
+    font-size: 13px; color: var(--stone-500); line-height: 1.6; margin-bottom: 16px;
+  }
+
+  .divider {
+    max-width: 900px; margin: 0 auto 48px; padding: 0 20px;
+  }
+  .divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--stone-300), transparent);
+  }
+
+  .pick-row { text-align: center; margin-top: 16px; }
+  .pick-btn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--orange); background: var(--orange-light);
+    border: 1.5px solid #FDBA74; padding: 8px 28px;
+    border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .pick-btn:hover {
+    background: var(--orange); color: white; border-color: var(--orange);
+    transform: translateY(-1px); box-shadow: 0 4px 12px rgba(249,115,22,0.25);
+  }
+
+  /* ── App frame ── */
+  .app-frame {
+    width: 900px; margin: 0 auto;
+    background: white; border-radius: 12px;
+    border: 1px solid var(--stone-200);
+    box-shadow: 0 6px 30px rgba(0,0,0,0.07);
+    overflow: hidden;
+  }
+  .title-bar {
+    height: 44px; background: var(--stone-50);
+    border-bottom: 1px solid var(--stone-200);
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    position: relative;
+  }
+  .title-bar .dots {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    display: flex; gap: 7px;
+  }
+  .title-bar .dots span { width: 12px; height: 12px; border-radius: 50%; }
+  .title-bar .dots span:nth-child(1) { background: #EF4444; }
+  .title-bar .dots span:nth-child(2) { background: #F59E0B; }
+  .title-bar .dots span:nth-child(3) { background: #22C55E; }
+  .tab {
+    font-size: 13px; color: var(--stone-400);
+    padding: 8px 14px; border-radius: 8px; cursor: default;
+  }
+  .tab.active { color: var(--orange); font-weight: 500; background: var(--orange-light); }
+  .tab.gone { text-decoration: line-through; color: var(--stone-300); }
+
+  .page-body {
+    height: 520px; overflow-y: auto; background: var(--stone-50);
+  }
+
+  /* ── Shared card ── */
+  .card {
+    background: white; border-radius: 14px; border: 1px solid var(--stone-200);
+    padding: 16px 20px 12px; margin-bottom: 10px;
+    transition: all 0.2s ease;
+  }
+  .card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.04); }
+  .card-row { display: flex; gap: 12px; align-items: flex-start; }
+  .card-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0; margin-top: 1px;
+  }
+  .card-icon.link { background: #FFF7ED; }
+  .card-icon.image { background: #F0FDF4; }
+  .card-icon.text { background: #EFF6FF; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-tags { display: flex; gap: 4px; margin-bottom: 6px; }
+  .card-tag {
+    font-size: 11px; font-weight: 500;
+    color: var(--orange-deep); background: var(--orange-light);
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .card-summary { font-size: 14px; color: var(--stone-700); line-height: 1.7; }
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--stone-100);
+    font-size: 11px; color: var(--stone-400);
+  }
+  .card-meta { display: flex; gap: 6px; align-items: center; }
+  .card-actions { display: flex; gap: 4px; }
+  .card-actions button {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 11px; color: var(--stone-400); background: none;
+    border: none; cursor: pointer; padding: 3px 7px; border-radius: 5px;
+  }
+  .card-actions button:hover { color: var(--orange); background: var(--orange-light); }
+  .fresh { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .fresh.g { background: #22C55E; }
+  .fresh.y { background: #FACC15; }
+  .fresh.gr { background: var(--stone-300); }
+
+  /* ════════════════════════
+     A: 日期横条
+     ════════════════════════ */
+  .a-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px; border-bottom: 1px solid var(--stone-100);
+    background: white;
+  }
+  .a-filters {
+    display: flex; gap: 4px;
+  }
+  .a-filter {
+    font-size: 12px; color: var(--stone-500); padding: 5px 12px;
+    border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+  }
+  .a-filter.active {
+    color: var(--orange); background: var(--orange-light);
+    border-color: rgba(249,115,22,0.15);
+  }
+  .a-spacer { flex: 1; }
+  .a-date-btn {
+    font-size: 12px; color: var(--stone-500); padding: 5px 12px;
+    border-radius: 8px; border: 1px solid var(--stone-200);
+    cursor: pointer; display: flex; align-items: center; gap: 5px;
+    background: white;
+  }
+  .a-date-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .a-date-btn.active-date {
+    color: var(--orange); border-color: var(--orange);
+    background: var(--orange-light);
+  }
+  .a-stats {
+    font-size: 11px; color: var(--stone-400);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .a-export-btn {
+    font-size: 11px; color: var(--stone-400); padding: 5px 10px;
+    border-radius: 8px; border: 1px solid var(--stone-200);
+    cursor: pointer; background: white;
+  }
+  .a-export-btn:hover { color: var(--orange); border-color: var(--orange); }
+  .a-content { padding: 16px 20px; }
+
+  .a-date-strip {
+    padding: 8px 20px; border-bottom: 1px solid var(--stone-100);
+    background: var(--stone-50);
+    display: flex; gap: 6px; overflow-x: auto;
+  }
+  .a-date-chip {
+    font-size: 11px; color: var(--stone-500); padding: 4px 10px;
+    border-radius: 6px; white-space: nowrap; cursor: pointer;
+    border: 1px solid transparent;
+    flex-shrink: 0;
+  }
+  .a-date-chip:hover { background: white; border-color: var(--stone-200); }
+  .a-date-chip.active {
+    color: var(--orange); background: var(--orange-light);
+    border-color: rgba(249,115,22,0.2);
+  }
+  .a-date-chip .count {
+    font-size: 10px; color: var(--stone-400); margin-left: 3px;
+  }
+
+  /* ════════════════════════
+     B: 可收起侧栏
+     ════════════════════════ */
+  .b-layout { display: flex; height: 100%; }
+  .b-sidebar {
+    width: 140px; border-right: 1px solid var(--stone-100);
+    background: white; padding: 12px 0; overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .b-sidebar-head {
+    padding: 0 12px 8px; font-size: 11px; font-weight: 600;
+    color: var(--stone-400); letter-spacing: 0.04em;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .b-sidebar-stats {
+    font-size: 10px; color: var(--stone-400); font-weight: 400;
+  }
+  .b-month {
+    padding: 6px 12px; font-size: 11px; font-weight: 600;
+    color: var(--stone-500); display: flex; align-items: center;
+    justify-content: space-between; cursor: pointer;
+  }
+  .b-month:hover { background: var(--stone-50); }
+  .b-month .cnt { font-weight: 400; color: var(--stone-400); }
+  .b-day {
+    padding: 4px 12px 4px 20px; font-size: 11px; color: var(--stone-500);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; border-left: 2px solid transparent;
+  }
+  .b-day:hover { background: var(--stone-50); }
+  .b-day.active {
+    color: var(--orange); font-weight: 500;
+    background: var(--orange-light);
+    border-left-color: var(--orange);
+  }
+  .b-day .cnt { font-weight: 400; color: var(--stone-400); font-size: 10px; }
+  .b-main {
+    flex: 1; overflow-y: auto;
+  }
+  .b-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-bottom: 1px solid var(--stone-100);
+    background: white;
+  }
+  .b-content { padding: 16px; }
+  .b-day-header {
+    font-size: 13px; font-weight: 600; color: var(--stone-600);
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .b-day-header .date { color: var(--stone-800); }
+  .b-day-header .count { font-weight: 400; color: var(--stone-400); font-size: 12px; }
+
+  /* ════════════════════════
+     C: 搜索+日期范围
+     ════════════════════════ */
+  .c-toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px; border-bottom: 1px solid var(--stone-100);
+    background: white;
+  }
+  .c-search {
+    flex: 1; font-size: 13px; padding: 7px 12px 7px 32px;
+    border-radius: 8px; border: 1px solid var(--stone-200);
+    background: var(--stone-50); color: var(--stone-800);
+    outline: none; position: relative;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  .c-search:focus { border-color: var(--orange); background: white; }
+  .c-search-wrap {
+    flex: 1; position: relative;
+  }
+  .c-search-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 14px; color: var(--stone-400); pointer-events: none;
+  }
+  .c-range-btn {
+    font-size: 12px; color: var(--stone-500); padding: 7px 12px;
+    border-radius: 8px; border: 1px solid var(--stone-200);
+    cursor: pointer; background: white; white-space: nowrap;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+  .c-range-btn:hover { border-color: var(--orange); color: var(--orange); }
+  .c-range-btn.active {
+    color: var(--orange); border-color: var(--orange); background: var(--orange-light);
+  }
+  .c-content { padding: 16px 20px; }
+  .c-group-header {
+    font-size: 12px; font-weight: 600; color: var(--stone-400);
+    padding: 8px 0 6px; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--stone-100); margin-bottom: 10px;
+  }
+  .c-group-header .date { color: var(--stone-600); }
+  .c-group-header .weekday { color: var(--stone-400); font-weight: 400; }
+  .c-group-header .count { margin-left: auto; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><span>小云</span> 数据 + 内容融合方案</h1>
+  <p>把数据板块的功能融入内容板块，减少一个 Tab，同时保留日期浏览和导出能力。</p>
+</div>
+
+<!-- Context -->
+<div class="context-box">
+  <div class="context-inner">
+    <div class="context-title">数据板块有什么是内容板块没有的？</div>
+    <div class="context-grid">
+      <div class="ctx-col">
+        <h4>数据板块独有功能</h4>
+        <ul>
+          <li class="unique">按日期浏览（选某一天看内容）</li>
+          <li class="unique">导出为 Markdown 文件</li>
+          <li>统计信息（总条数、天数）</li>
+          <li>按类型分组（某一天内的文本/链接/图片）</li>
+        </ul>
+      </div>
+      <div class="ctx-col">
+        <h4>融合后要保留的</h4>
+        <ul>
+          <li class="unique">按日期筛选内容</li>
+          <li class="unique">导出功能入口</li>
+          <li>统计可以弱化或移到设置</li>
+          <li>类型分组：内容板块已有类型筛选</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ A: 日期横条 ═══════════ -->
+<div class="proposal-section">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 A</span>
+    <span class="proposal-title">日期横条</span>
+  </div>
+  <p class="proposal-desc">在筛选栏旁边加一个日期按钮，点击展开一排日期横条。选了日期就只看那天的内容，再点一下取消筛选回到全部。导出按钮放在右上角。最小改动。</p>
+
+  <div class="app-frame">
+    <div class="title-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="tab active">内容</div>
+      <div class="tab">雷达</div>
+      <div class="tab gone">数据</div>
+      <div class="tab">设置</div>
+    </div>
+    <div class="page-body">
+      <div class="a-toolbar">
+        <div class="a-filters">
+          <div class="a-filter active">全部 50</div>
+          <div class="a-filter">文本 4</div>
+          <div class="a-filter">图片 17</div>
+          <div class="a-filter">链接 29</div>
+        </div>
+        <div class="a-spacer"></div>
+        <div class="a-date-btn active-date">📅 4月3日</div>
+        <div class="a-export-btn">↗ 导出</div>
+      </div>
+      <div class="a-date-strip">
+        <div class="a-date-chip">4月5日<span class="count">3</span></div>
+        <div class="a-date-chip">4月4日<span class="count">8</span></div>
+        <div class="a-date-chip active">4月3日<span class="count">5</span></div>
+        <div class="a-date-chip">4月2日<span class="count">12</span></div>
+        <div class="a-date-chip">4月1日<span class="count">7</span></div>
+        <div class="a-date-chip">3月31日<span class="count">4</span></div>
+        <div class="a-date-chip">3月30日<span class="count">6</span></div>
+        <div class="a-date-chip">3月29日<span class="count">2</span></div>
+        <div class="a-date-chip">3月28日<span class="count">9</span></div>
+      </div>
+      <div class="a-content">
+        <div class="card"><div class="card-row">
+          <div class="card-icon link">🔗</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">旅行</span><span class="card-tag">散文诗</span></div>
+            <div class="card-summary">一首关于旅行和青春的散文诗，写在陌生城市里对时间流逝的感悟</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh g"></span>4月3日 14:30<span style="color:var(--stone-300)">/</span>WeChat</div>
+              <div class="card-actions"><button>打开链接</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="card"><div class="card-row">
+          <div class="card-icon text">📝</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">注意力管理</span></div>
+            <div class="card-summary">管理信息输入就像管理投资组合，要有意识地选择看什么</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh g"></span>4月3日 11:20<span style="color:var(--stone-300)">/</span>备忘录</div>
+              <div class="card-actions"><button>AI 对话</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('方案 A')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ B: 窄侧栏 ═══════════ -->
+<div class="proposal-section">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 B</span>
+    <span class="proposal-title">窄侧栏</span>
+  </div>
+  <p class="proposal-desc">左边加一个 140px 的窄日历侧栏，保留数据板块"按月展开、按日选择"的交互，但更紧凑。默认看全部，选了日期就切到那天。侧栏始终可见，像 Finder 的边栏。</p>
+
+  <div class="app-frame">
+    <div class="title-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="tab active">内容</div>
+      <div class="tab">雷达</div>
+      <div class="tab gone">数据</div>
+      <div class="tab">设置</div>
+    </div>
+    <div class="page-body">
+      <div class="b-layout">
+        <div class="b-sidebar">
+          <div class="b-sidebar-head">
+            <span>日期</span>
+            <span class="b-sidebar-stats">50 条</span>
+          </div>
+          <div class="b-month">4月 <span class="cnt">16</span></div>
+          <div class="b-day">5日 周六 <span class="cnt">3</span></div>
+          <div class="b-day">4日 周五 <span class="cnt">8</span></div>
+          <div class="b-day active">3日 周四 <span class="cnt">5</span></div>
+          <div class="b-day">2日 周三 <span class="cnt">12</span></div>
+          <div class="b-day">1日 周二 <span class="cnt">7</span></div>
+          <div class="b-month">3月 <span class="cnt">34</span></div>
+          <div class="b-day">31日 周一 <span class="cnt">4</span></div>
+          <div class="b-day">30日 周日 <span class="cnt">6</span></div>
+          <div class="b-day">29日 周六 <span class="cnt">2</span></div>
+        </div>
+        <div class="b-main">
+          <div class="b-toolbar">
+            <div class="a-filters">
+              <div class="a-filter active">全部 5</div>
+              <div class="a-filter">文本 1</div>
+              <div class="a-filter">图片 2</div>
+              <div class="a-filter">链接 2</div>
+            </div>
+            <div class="a-spacer"></div>
+            <div class="a-export-btn">↗ 导出此日</div>
+          </div>
+          <div class="b-content">
+            <div class="b-day-header">
+              <span class="date">4月3日 周四</span>
+              <span class="count">5 条内容</span>
+            </div>
+            <div class="card"><div class="card-row">
+              <div class="card-icon link">🔗</div>
+              <div class="card-body">
+                <div class="card-tags"><span class="card-tag">旅行</span><span class="card-tag">散文诗</span></div>
+                <div class="card-summary">一首关于旅行和青春的散文诗，写在陌生城市里对时间流逝的感悟</div>
+                <div class="card-footer">
+                  <div class="card-meta"><span class="fresh g"></span>14:30<span style="color:var(--stone-300)">/</span>WeChat</div>
+                  <div class="card-actions"><button>打开链接</button><button>复制</button><button>删除</button></div>
+                </div>
+              </div>
+            </div></div>
+            <div class="card"><div class="card-row">
+              <div class="card-icon text">📝</div>
+              <div class="card-body">
+                <div class="card-tags"><span class="card-tag">注意力管理</span></div>
+                <div class="card-summary">管理信息输入就像管理投资组合，要有意识地选择看什么</div>
+                <div class="card-footer">
+                  <div class="card-meta"><span class="fresh g"></span>11:20<span style="color:var(--stone-300)">/</span>备忘录</div>
+                  <div class="card-actions"><button>AI 对话</button><button>复制</button><button>删除</button></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('方案 B')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ C: 日期分组 ═══════════ -->
+<div class="proposal-section">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 C</span>
+    <span class="proposal-title">日期分组</span>
+  </div>
+  <p class="proposal-desc">不加侧栏也不加横条，直接在内容列表里按日期分组，每天一个小标题。滚动浏览时自然看到日期分界。导出按钮放在筛选栏右侧。最简单，零新增 UI 元素。</p>
+
+  <div class="app-frame">
+    <div class="title-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="tab active">内容</div>
+      <div class="tab">雷达</div>
+      <div class="tab gone">数据</div>
+      <div class="tab">设置</div>
+    </div>
+    <div class="page-body">
+      <div class="c-toolbar">
+        <div class="a-filters">
+          <div class="a-filter active">全部 50</div>
+          <div class="a-filter">文本 4</div>
+          <div class="a-filter">图片 17</div>
+          <div class="a-filter">链接 29</div>
+        </div>
+        <div class="a-spacer"></div>
+        <div class="a-export-btn">↗ 导出</div>
+      </div>
+      <div class="c-content">
+        <div class="c-group-header">
+          <span class="date">4月5日</span>
+          <span class="weekday">周六</span>
+          <span class="count">3 条</span>
+        </div>
+        <div class="card"><div class="card-row">
+          <div class="card-icon link">🔗</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">AI 产品</span><span class="card-tag">用户体验</span></div>
+            <div class="card-summary">做 AI 产品别追大而全，找一个专业场景做到极致比什么都强</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh g"></span>16:40<span style="color:var(--stone-300)">/</span>Chrome</div>
+              <div class="card-actions"><button>打开链接</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+
+        <div class="c-group-header">
+          <span class="date">4月4日</span>
+          <span class="weekday">周五</span>
+          <span class="count">8 条</span>
+        </div>
+        <div class="card"><div class="card-row">
+          <div class="card-icon link">🔗</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">旅行</span><span class="card-tag">散文诗</span></div>
+            <div class="card-summary">一首关于旅行和青春的散文诗，写在陌生城市里对时间流逝的感悟</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh y"></span>14:30<span style="color:var(--stone-300)">/</span>WeChat</div>
+              <div class="card-actions"><button>打开链接</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="card"><div class="card-row">
+          <div class="card-icon text">📝</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">注意力管理</span></div>
+            <div class="card-summary">管理信息输入就像管理投资组合，要有意识地选择看什么</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh y"></span>11:20<span style="color:var(--stone-300)">/</span>备忘录</div>
+              <div class="card-actions"><button>AI 对话</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+
+        <div class="c-group-header">
+          <span class="date">4月3日</span>
+          <span class="weekday">周四</span>
+          <span class="count">5 条</span>
+        </div>
+        <div class="card"><div class="card-row">
+          <div class="card-icon image">🖼</div>
+          <div class="card-body">
+            <div class="card-tags"><span class="card-tag">开源策略</span></div>
+            <div class="card-summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议</div>
+            <div class="card-footer">
+              <div class="card-meta"><span class="fresh gr"></span>09:15<span style="color:var(--stone-300)">/</span>Claude</div>
+              <div class="card-actions"><button>AI 对话</button><button>复制</button><button>删除</button></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('方案 C')">我选这个</button></div>
+</div>
+
+<div style="height:60px;"></div>
+</body>
+</html>

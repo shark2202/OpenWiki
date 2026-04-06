@@ -54,7 +54,7 @@ pub fn generate_day_markdown(
     if !texts.is_empty() {
         md.push_str("## 文本\n\n");
         for item in &texts {
-            write_content_item(&mut md, item);
+            write_content_item(&mut md, item, export_dir);
         }
     }
 
@@ -62,56 +62,15 @@ pub fn generate_day_markdown(
     if !urls.is_empty() {
         md.push_str("## 链接\n\n");
         for item in &urls {
-            if let Some(url) = &item.source_url {
-                md.push_str(&format!("- [{}]({})\n", url, url));
-            }
-            if let Some(text) = &item.raw_text {
-                if !text.is_empty() {
-                    // Show a brief preview of the fetched content
-                    let preview: String = text.chars().take(200).collect();
-                    md.push_str(&format!("  > {}\n", preview.replace('\n', " ")));
-                }
-            }
-            if let Some(note) = &item.user_note {
-                if !note.is_empty() {
-                    md.push_str(&format!("  **备注**: {}\n", note));
-                }
-            }
-            md.push('\n');
+            write_content_item(&mut md, item, export_dir);
         }
     }
 
     // Image section
     if !images.is_empty() {
         md.push_str("## 图片\n\n");
-        let images_dir = export_dir.join("images");
-        let _ = fs::create_dir_all(&images_dir);
-
         for item in &images {
-            if let Some(image_path) = &item.image_path {
-                let src = Path::new(image_path);
-                if src.exists() {
-                    if let Some(filename) = src.file_name() {
-                        let dest = images_dir.join(filename);
-                        let _ = fs::copy(src, &dest);
-                        md.push_str(&format!(
-                            "![image](../images/{})\n",
-                            filename.to_string_lossy()
-                        ));
-                    }
-                }
-            }
-            if let Some(text) = &item.raw_text {
-                if !text.is_empty() {
-                    md.push_str(&format!("> OCR: {}\n", text.replace('\n', " ")));
-                }
-            }
-            if let Some(note) = &item.user_note {
-                if !note.is_empty() {
-                    md.push_str(&format!("**备注**: {}\n", note));
-                }
-            }
-            md.push('\n');
+            write_content_item(&mut md, item, export_dir);
         }
     }
 
@@ -119,7 +78,7 @@ pub fn generate_day_markdown(
     if !mixed.is_empty() {
         md.push_str("## 其他\n\n");
         for item in &mixed {
-            write_content_item(&mut md, item);
+            write_content_item(&mut md, item, export_dir);
         }
     }
 
@@ -127,21 +86,78 @@ pub fn generate_day_markdown(
 }
 
 /// Write a single content item to the markdown string.
-fn write_content_item(md: &mut String, item: &CapturedContent) {
+fn write_content_item(md: &mut String, item: &CapturedContent, export_dir: &Path) {
     let time = extract_time(&item.captured_at);
     md.push_str(&format!("### {} — {}\n\n", time, item.source_app));
 
-    if let Some(text) = &item.raw_text {
-        if !text.is_empty() {
-            md.push_str(text);
-            md.push_str("\n\n");
+    // Summary
+    if let Some(summary) = &item.summary {
+        if !summary.is_empty() {
+            md.push_str(&format!("**摘要**: {}\n\n", summary));
         }
     }
+
+    // Tags
+    if let Some(tags) = &item.tags {
+        if !tags.is_empty() {
+            md.push_str(&format!("**标签**: {}\n\n", tags));
+        }
+    }
+
+    // Source URL (for link type)
+    if let Some(url) = &item.source_url {
+        if !url.is_empty() {
+            md.push_str(&format!("**链接**: [{}]({})\n\n", url, url));
+        }
+    }
+
+    // Image (copy file + embed)
+    if let Some(image_path) = &item.image_path {
+        let src = Path::new(image_path);
+        if src.exists() {
+            if let Some(filename) = src.file_name() {
+                let images_dir = export_dir.join("images");
+                let _ = fs::create_dir_all(&images_dir);
+                let dest = images_dir.join(filename);
+                let _ = fs::copy(src, &dest);
+                md.push_str(&format!(
+                    "![image](../images/{})\n\n",
+                    filename.to_string_lossy()
+                ));
+            }
+        }
+    }
+
+    // Full original text / OCR text / fetched URL content
+    if let Some(text) = &item.raw_text {
+        if !text.is_empty() {
+            match item.content_type {
+                ContentType::Image => {
+                    md.push_str("**OCR 识别文本**:\n\n");
+                    md.push_str(text);
+                    md.push_str("\n\n");
+                }
+                ContentType::Url => {
+                    md.push_str("**原文内容**:\n\n");
+                    md.push_str(text);
+                    md.push_str("\n\n");
+                }
+                _ => {
+                    md.push_str(text);
+                    md.push_str("\n\n");
+                }
+            }
+        }
+    }
+
+    // User note
     if let Some(note) = &item.user_note {
         if !note.is_empty() {
             md.push_str(&format!("> **备注**: {}\n\n", note));
         }
     }
+
+    md.push_str("---\n\n");
 }
 
 /// Extract the HH:MM time portion from an ISO-8601 datetime string.
@@ -230,4 +246,66 @@ pub fn export_date_range(
     }
 
     Ok(count)
+}
+
+/// Export all content into a single markdown file, grouped by date.
+/// Returns the file path of the exported file.
+pub fn export_all_single_file(
+    repo: &Repository,
+    export_dir: &Path,
+) -> Result<(PathBuf, usize), Box<dyn std::error::Error>> {
+    let dates = repo.get_dates_with_content()?;
+    export_dates_to_single_file(&dates, repo, export_dir, "小云-全部内容")
+}
+
+/// Export a date range into a single markdown file, grouped by date.
+/// Returns the file path and content count.
+pub fn export_range_single_file(
+    start: &str,
+    end: &str,
+    repo: &Repository,
+    export_dir: &Path,
+) -> Result<(PathBuf, usize), Box<dyn std::error::Error>> {
+    let dates = repo.get_dates_with_content()?;
+    let filtered: Vec<(String, i64)> = dates
+        .into_iter()
+        .filter(|(d, _)| d.as_str() >= start && d.as_str() <= end)
+        .collect();
+    let filename = format!("小云-{}-至-{}", start, end);
+    export_dates_to_single_file(&filtered, repo, export_dir, &filename)
+}
+
+/// Internal: merge multiple days into one markdown file.
+fn export_dates_to_single_file(
+    dates: &[(String, i64)],
+    repo: &Repository,
+    export_dir: &Path,
+    filename: &str,
+) -> Result<(PathBuf, usize), Box<dyn std::error::Error>> {
+    fs::create_dir_all(export_dir)?;
+
+    let mut md = String::new();
+    let mut total_items = 0usize;
+
+    for (date, _cnt) in dates {
+        let contents = match repo.get_content_for_date(date) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if contents.is_empty() { continue; }
+        total_items += contents.len();
+        let day_md = generate_day_markdown(date, &contents, export_dir)?;
+        md.push_str(&day_md);
+        md.push('\n');
+    }
+
+    if md.is_empty() {
+        return Err("没有可导出的内容".into());
+    }
+
+    let file_path = export_dir.join(format!("{}.md", filename));
+    fs::write(&file_path, &md)?;
+    log::info!("Exported {} items to single file: {}", total_items, file_path.display());
+
+    Ok((file_path, total_items))
 }

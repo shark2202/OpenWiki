@@ -57,7 +57,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content WHERE is_deleted = 0 ORDER BY captured_at DESC LIMIT ?1 OFFSET ?2"
         )?;
 
@@ -80,6 +80,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -103,7 +105,7 @@ impl Repository {
             .map_err(|e| format!("Lock error: {}", e))?;
         let pattern = format!("%{}%", query);
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content
              WHERE is_deleted = 0
                AND (raw_text LIKE ?1 OR source_url LIKE ?1 OR source_app LIKE ?1 OR user_note LIKE ?1)
@@ -129,6 +131,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -155,6 +159,43 @@ impl Repository {
         conn.execute(
             "UPDATE captured_content SET raw_text = ?1, source_url = ?2, byte_size = ?3, updated_at = datetime('now') WHERE id = ?4",
             params![raw_text, source_url, raw_text.len() as i64, id],
+        )?;
+        Ok(())
+    }
+
+    /// Move a content item to the top by updating its captured_at to now.
+    pub fn touch_captured_at(
+        &self,
+        id: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+        conn.execute(
+            "UPDATE captured_content SET captured_at = ?1, updated_at = datetime('now') WHERE id = ?2",
+            rusqlite::params![now, id],
+        )?;
+        Ok(())
+    }
+
+    /// Update the AI-generated summary and tags for a content item.
+    pub fn update_summary_and_tags(
+        &self,
+        id: &str,
+        summary: &str,
+        tags: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+        conn.execute(
+            "UPDATE captured_content SET summary = ?1, tags = ?2, updated_at = datetime('now') WHERE id = ?3",
+            rusqlite::params![summary, tags, id],
         )?;
         Ok(())
     }
@@ -219,7 +260,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content WHERE content_hash = ?1 AND is_deleted = 0 LIMIT 1"
         )?;
 
@@ -242,6 +283,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -278,7 +321,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content
              WHERE is_deleted = 0 AND captured_at >= ?1 AND captured_at <= ?2
              ORDER BY captured_at DESC"
@@ -303,6 +346,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -324,7 +369,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content WHERE id = ?1 AND is_deleted = 0"
         )?;
 
@@ -347,6 +392,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -730,7 +777,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content WHERE DATE(captured_at) = ?1 AND is_deleted = 0 ORDER BY captured_at ASC",
         )?;
 
@@ -753,6 +800,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -777,7 +826,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content
              WHERE is_deleted = 0 AND digested_at IS NULL
              ORDER BY captured_at ASC LIMIT ?1"
@@ -802,6 +851,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 
@@ -823,7 +874,7 @@ impl Repository {
             .lock()
             .map_err(|e| format!("Lock error: {}", e))?;
         let mut stmt = conn.prepare(
-            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action
+            "SELECT id, content_type, raw_text, image_path, thumbnail_path, source_app, source_bundle_id, source_url, user_note, captured_at, content_hash, byte_size, is_deleted, created_at, updated_at, digested_at, digest_action, summary, tags
              FROM captured_content
              WHERE is_deleted = 0 AND digested_at IS NULL
                AND captured_at >= datetime('now', '-' || ?1 || ' days')
@@ -849,6 +900,8 @@ impl Repository {
                 updated_at: row.get(14)?,
                 digested_at: row.get(15).unwrap_or(None),
                 digest_action: row.get(16).unwrap_or(None),
+                summary: row.get(17).unwrap_or(None),
+                tags: row.get(18).unwrap_or(None),
             })
         })?;
 

@@ -178,15 +178,14 @@ pub fn save_content_auto(db: &Arc<Database>, event: CaptureEvent) -> Result<Capt
     // For URL content, use the clean detected URL (trimmed) as source_url
     let source_url = detected_url.clone();
 
-    // Check for duplicate content using content_hash before saving
+    // Check for duplicate content — if found, move it to the top by updating captured_at
     let repo = crate::storage::repository::Repository::new(db.clone());
-    if repo
-        .content_exists_by_hash(&content_hash)
-        .unwrap_or(false)
-    {
+    if let Ok(Some(existing)) = repo.find_content_by_hash(&content_hash) {
+        let _ = repo.touch_captured_at(&existing.id);
         log::info!(
-            "Duplicate content detected (hash={}), skipping save",
-            &content_hash[..16]
+            "Duplicate content detected (hash={}), moved to top: {}",
+            &content_hash[..16],
+            existing.id
         );
         return Err("Duplicate content".to_string());
     }
@@ -209,6 +208,8 @@ pub fn save_content_auto(db: &Arc<Database>, event: CaptureEvent) -> Result<Capt
         updated_at: now,
         digested_at: None,
         digest_action: None,
+        summary: None,
+        tags: None,
     };
 
     repo.save_content(&content).map_err(|e| e.to_string())?;
@@ -350,7 +351,15 @@ pub fn confirm_capture(
         raw_text,
         image_path,
     };
-    let mut content = save_content_auto(&state.db, event)?;
+    let mut content = match save_content_auto(&state.db, event) {
+        Ok(c) => c,
+        Err(e) if e.contains("Duplicate content") => {
+            // Content was moved to top, emit refresh event
+            let _ = app.emit("content:url-fetched", serde_json::json!({"id": "", "reorder": true}));
+            return Err("已移到最前面".to_string());
+        }
+        Err(e) => return Err(e),
+    };
 
     // Attach user note if provided
     if let Some(ref note) = user_note {
@@ -372,7 +381,32 @@ pub fn confirm_capture(
     // Auto-fetch for URL content
     spawn_auto_url_fetch(&app, &state.db, &content);
 
+    // AI summary for text content (images get it after OCR, URLs after fetch)
+    if content.content_type.as_str() == "text" {
+        if let Some(ref text) = content.raw_text {
+            spawn_summary_task(state.db.clone(), app.clone(), content.id.clone(), text.clone());
+        }
+    }
+
     Ok(content)
+}
+
+/// Get multiple content items by their IDs. Used by radar detail view.
+#[tauri::command]
+pub fn get_contents_by_ids(
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<Vec<CapturedContent>, String> {
+    let repo = crate::storage::repository::Repository::new(state.db.clone());
+    let mut results = Vec::new();
+    for id in &ids {
+        match repo.get_content_by_id(id) {
+            Ok(Some(content)) => results.push(content),
+            Ok(None) => {} // skip missing
+            Err(e) => log::warn!("Failed to get content {}: {}", id, e),
+        }
+    }
+    Ok(results)
 }
 
 /// Called by the bubble window to retrieve the latest pending capture.
@@ -435,11 +469,13 @@ pub async fn retry_url_fetch(
         let reader = crate::capture::url_reader::UrlReader::new();
         match reader.fetch_content(&url).await {
             Ok(result) => {
+                let db_for_summary = db.clone();
                 let repo = crate::storage::repository::Repository::new(db);
                 if let Err(e) = repo.update_content_for_url(&content_id, &result.content, &url) {
                     log::error!("Failed to update URL content on retry: {}", e);
                 } else {
                     log::info!("URL retry succeeded for {}: {} chars", content_id, result.content.len());
+                    spawn_summary_task(db_for_summary, app.clone(), content_id.clone(), result.content.clone());
                     let _ = app.emit(
                         "content:url-fetched",
                         serde_json::json!({
@@ -536,11 +572,13 @@ fn spawn_auto_ocr(
         .await
         {
             Ok(Ok(text)) => {
+                let db_for_summary = db_clone.clone();
                 let repo = crate::storage::repository::Repository::new(db_clone);
                 if let Err(e) = repo.update_raw_text(&content_id, &text) {
                     log::error!("[OCR] Failed to save: {}", e);
                 } else {
                     log::info!("[OCR] Auto-OCR done for {}: {} chars", content_id, text.len());
+                    spawn_summary_task(db_for_summary, app_clone.clone(), content_id.clone(), text.clone());
                     let _ = app_clone.emit(
                         "content:ocr-done",
                         serde_json::json!({
@@ -592,11 +630,13 @@ fn spawn_auto_url_fetch(
         let reader = crate::capture::url_reader::UrlReader::new();
         match reader.fetch_content(&url).await {
             Ok(result) => {
+                let db_for_summary = db_clone.clone();
                 let repo = crate::storage::repository::Repository::new(db_clone);
                 if let Err(e) = repo.update_content_for_url(&content_id, &result.content, &url) {
                     log::error!("Failed to update URL content: {}", e);
                 } else {
                     log::info!("URL fetched for {}: {} chars", content_id, result.content.len());
+                    spawn_summary_task(db_for_summary, app_clone.clone(), content_id.clone(), result.content.clone());
                     let _ = app_clone.emit(
                         "content:url-fetched",
                         serde_json::json!({
@@ -621,6 +661,119 @@ fn spawn_auto_url_fetch(
     });
 }
 
+/// Spawn an async task to generate an AI summary for a content item.
+/// Silently skips if no API key configured or text too short.
+pub fn spawn_summary_task(db: Arc<Database>, app: tauri::AppHandle, content_id: String, text: String) {
+    // At least 2 Chinese characters (~6 bytes) to be worth summarizing
+    if text.trim().len() < 6 {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        let repo = crate::storage::repository::Repository::new(db.clone());
+
+        let provider_str = repo.get_setting("ai_provider").ok().flatten()
+            .unwrap_or_else(|| "anthropic".to_string());
+
+        // Load per-provider API key, fall back to legacy key
+        let provider_key = format!("ai_api_key_{}", provider_str);
+        let api_key = repo.get_setting(&provider_key).ok().flatten()
+            .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
+            .unwrap_or_default();
+        if api_key.is_empty() {
+            return;
+        }
+        let model = repo.get_setting("ai_model").ok().flatten()
+            .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
+
+        // 发送完整内容给 AI（上限 5000 字，覆盖绝大多数文章）
+        let content_for_ai: String = text.chars().take(5000).collect();
+        let prompt = format!(
+            "通读以下全文，返回JSON格式，包含两个字段：\n\
+             1. \"tags\": 2-3个价值点标签，每个标签回答\"这篇内容教了我什么/让我记住了什么\"。\n\
+                要求：具体、有信息量、能帮人回忆起这篇内容。\n\
+                好的标签：\"逆向思维选股\"、\"冷启动获客策略\"、\"注意力即货币\"\n\
+                差的标签：\"投资\"、\"方法论\"、\"AI\"（太泛，没有信息量）\n\
+                每个标签3-8个字，用中文简体\n\
+             2. \"summary\": 用大白话说这篇内容讲了什么（中文简体，不超过80字）。\n\
+                像朋友转发文章时附的一句话，让人一看就知道要不要点开。\n\
+                不要用书面语、不要用\"探讨\"\"阐述\"\"倡导\"这类词，就正常说话。\n\
+             无论原文是什么语言，都必须用中文简体。只返回JSON。\n\
+             示例：{{\"tags\":[\"逆向思维选股\",\"情绪周期套利\",\"长期持有复利\"],\"summary\":\"教你怎么在股市暴跌时抄底，关键是平时得留够现金，不然想抄也没钱\"}}\n\n{}",
+            content_for_ai
+        );
+
+        let provider = crate::ai::attention_analyzer::AnalysisProvider::from_str(&provider_str);
+        match crate::ai::attention_analyzer::call_analysis_api(
+            &provider, &api_key, &model, "", &prompt, 512,
+        ).await {
+            Ok(raw) => {
+                let (summary, tags) = extract_summary_and_tags(&raw);
+                if !summary.is_empty() {
+                    let tags_str = tags.join(",");
+                    let _ = repo.update_summary_and_tags(&content_id, &summary, &tags_str);
+                    let _ = app.emit("content-summary-ready", &content_id);
+                    log::info!("Summary generated for {}: [{}] {}", content_id, tags_str, summary);
+                }
+            }
+            Err(e) => {
+                log::warn!("Summary generation failed for {}: {}", content_id, e);
+            }
+        }
+    });
+}
+
+/// Extract summary and tags from AI response.
+/// Expected format: {"tags":["标签1","标签2"],"summary":"摘要文本"}
+/// Falls back gracefully for unexpected formats.
+fn extract_summary_and_tags(raw: &str) -> (String, Vec<String>) {
+    let trimmed = raw.trim();
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        let summary = v.get("summary")
+            .and_then(|v| v.as_str())
+            .or_else(|| v.get("text").and_then(|v| v.as_str()))
+            .or_else(|| v.get("content").and_then(|v| v.as_str()))
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        let tags = v.get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        if !summary.is_empty() {
+            return (summary, tags);
+        }
+
+        // Fallback: single string value in object
+        if let Some(obj) = v.as_object() {
+            if obj.len() == 1 {
+                if let Some(s) = obj.values().next().and_then(|v| v.as_str()) {
+                    return (s.trim().to_string(), vec![]);
+                }
+            }
+        }
+        // Array fallback
+        if let Some(arr) = v.as_array() {
+            if let Some(s) = arr.first().and_then(|v| v.as_str()) {
+                return (s.trim().to_string(), vec![]);
+            }
+        }
+        // Plain string in JSON
+        if let Some(s) = v.as_str() {
+            return (s.trim().to_string(), vec![]);
+        }
+    }
+    // Not JSON — treat as plain text summary
+    let stripped = trimmed.trim_matches('"').trim_matches('「').trim_matches('」');
+    (stripped.trim().to_string(), vec![])
+}
+
 /// Close (destroy) the bubble window completely.
 fn hide_bubble_window(app: &tauri::AppHandle) {
     use tauri::Manager;
@@ -640,4 +793,18 @@ pub fn debug_log(message: String) {
         let _ = writeln!(f, "[{}] {}", now, message);
     }
     log::info!("[BUBBLE_DEBUG] {}", message);
+}
+
+/// Test AI API connection with the given provider, model, and key.
+/// Returns Ok(model_response) on success, Err(error_message) on failure.
+#[tauri::command]
+pub async fn test_ai_connection(
+    provider: String,
+    model: String,
+    api_key: String,
+) -> Result<String, String> {
+    let p = crate::ai::attention_analyzer::AnalysisProvider::from_str(&provider);
+    crate::ai::attention_analyzer::call_analysis_api(
+        &p, &api_key, &model, "", "回复\"连接成功\"这四个字，不要说其他内容。", 64,
+    ).await
 }

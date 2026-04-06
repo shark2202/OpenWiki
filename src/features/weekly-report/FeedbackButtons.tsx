@@ -92,8 +92,8 @@ function FeedbackButton({
 
   const variantClasses = {
     interested: {
-      idle: "bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 hover:bg-blue-100 dark:hover:bg-blue-500/20",
-      confirming: "bg-blue-100 dark:bg-blue-500/20 text-indigo-600 dark:text-indigo-400",
+      idle: "bg-orange-500/10 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20",
+      confirming: "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400",
       confirmed: "bg-blue-500 text-white",
     },
     dismissed: {

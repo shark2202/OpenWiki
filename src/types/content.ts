@@ -18,6 +18,8 @@ export interface CapturedContent {
   updated_at: string;
   digested_at?: string;
   digest_action?: string;
+  summary?: string;
+  tags?: string;
 }
 
 export interface CaptureEvent {

@@ -87,7 +87,7 @@ export function DateSidebar({ totalItems, totalDates, onOpenExportPanel }: DateS
                           transition-all duration-150
                           ${
                             isSelected
-                              ? "bg-gradient-to-r from-indigo-500/15 to-purple-500/15 dark:from-indigo-500/20 dark:to-purple-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-300/40 dark:border-indigo-500/20"
+                              ? "bg-orange-500/15 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-300/40 dark:border-orange-500/20"
                               : "text-gray-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-white/[0.06]"
                           }
                         `}
@@ -98,7 +98,7 @@ export function DateSidebar({ totalItems, totalDates, onOpenExportPanel }: DateS
                             px-1.5 py-0.5 text-[10px] rounded-full
                             ${
                               isSelected
-                                ? "bg-indigo-500/15 dark:bg-indigo-500/25 text-indigo-600 dark:text-indigo-400"
+                                ? "bg-orange-500/15 dark:bg-orange-500/25 text-orange-600 dark:text-orange-400"
                                 : "bg-gray-200/50 dark:bg-white/[0.06] text-gray-400 dark:text-slate-500"
                             }
                           `}

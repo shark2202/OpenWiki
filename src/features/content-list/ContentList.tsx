@@ -2,11 +2,13 @@ import { useEffect, useCallback, useState, useMemo, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useContentStore } from "../../stores/contentStore";
 import { getAllContent } from "../../services/storageService";
+import { exportAllSingle, exportRangeSingle } from "../../services/dataHubService";
 import { useSettingsStore, containsSensitiveData } from "../../stores/settingsStore";
 import { ContentCard } from "./ContentCard";
 import type { ContentType } from "../../types/content";
 
 type FilterType = "all" | ContentType;
+type DateRange = "all" | "today" | "week" | "half-month";
 
 const FILTER_TABS: { value: FilterType; label: string; icon: string }[] = [
   { value: "all", label: "全部", icon: "📋" },
@@ -24,6 +26,9 @@ export function ContentList() {
   const captureEnabled = useSettingsStore((s) => s.captureEnabled);
   const sensitiveFilterEnabled = useSettingsStore((s) => s.sensitiveFilterEnabled);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [exportStatus, setExportStatus] = useState<"idle" | "confirm" | "exporting" | "done">("idle");
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs for scroll-to-item
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -57,6 +62,18 @@ export function ContentList() {
       "content:url-fetched",
       (_event) => {
         console.log("URL content fetched, reloading content list");
+        loadContent();
+      }
+    );
+    return () => { unlisten.then((fn) => fn()); };
+  }, [loadContent]);
+
+  // Listen for AI summary/tags completion — reload to show tags and summary
+  useEffect(() => {
+    const unlisten = listen<string>(
+      "content-summary-ready",
+      (_event) => {
+        console.log("Summary ready, reloading content list");
         loadContent();
       }
     );
@@ -111,8 +128,20 @@ export function ContentList() {
     if (filter !== "all") {
       result = result.filter((c) => c.content_type === filter);
     }
+    if (dateRange !== "all") {
+      const now = new Date();
+      const cutoff = new Date();
+      if (dateRange === "today") {
+        cutoff.setHours(0, 0, 0, 0);
+      } else if (dateRange === "week") {
+        cutoff.setDate(now.getDate() - 7);
+      } else if (dateRange === "half-month") {
+        cutoff.setDate(now.getDate() - 15);
+      }
+      result = result.filter((c) => new Date(c.captured_at) >= cutoff);
+    }
     return result;
-  }, [contents, filter, sensitiveFilterEnabled]);
+  }, [contents, filter, sensitiveFilterEnabled, dateRange]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = { all: contents.length };
@@ -132,7 +161,7 @@ export function ContentList() {
         {[1, 2, 3].map((i) => (
           <div key={i} className="glass rounded-2xl p-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-indigo-500/10 dark:bg-indigo-500/10 rounded-xl animate-pulse" />
+              <div className="w-8 h-8 bg-orange-500/10 dark:bg-orange-500/10 rounded-xl animate-pulse" />
               <div className="flex-1 space-y-2">
                 <div className="h-4 bg-gray-200/50 dark:bg-white/[0.06] rounded w-3/4 animate-pulse" />
                 <div className="h-3 bg-gray-200/30 dark:bg-white/[0.04] rounded w-1/2 animate-pulse" />
@@ -168,7 +197,7 @@ export function ContentList() {
   }
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="overflow-y-auto p-4 space-y-3" style={{ height: "calc(100vh - 44px)" }}>
       {/* Header with filter tabs */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-1 p-0.5 rounded-xl glass">
@@ -183,7 +212,7 @@ export function ContentList() {
                 className={`
                   flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all
                   ${isActive
-                    ? "bg-white/80 dark:bg-white/[0.1] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    ? "bg-white/80 dark:bg-white/[0.1] text-orange-600 dark:text-orange-400 shadow-sm"
                     : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
                   }
                 `}
@@ -193,7 +222,7 @@ export function ContentList() {
                 <span className={`
                   ml-0.5 px-1.5 py-0.5 rounded-full text-[10px]
                   ${isActive
-                    ? "bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400"
+                    ? "bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400"
                     : "bg-gray-200/50 dark:bg-white/[0.06] text-gray-400 dark:text-slate-500"
                   }
                 `}>
@@ -203,9 +232,78 @@ export function ContentList() {
             );
           })}
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-slate-500">
-          <span className={`w-1.5 h-1.5 rounded-full ${captureEnabled ? "bg-green-400" : "bg-gray-300 dark:bg-slate-600"}`} />
-          {captureEnabled ? "捕获中" : "已暂停"}
+        <div className="flex items-center gap-1.5">
+          {/* Date range filters */}
+          {(["all", "today", "week", "half-month"] as DateRange[]).map((range) => {
+            const label = range === "all" ? "全部" : range === "today" ? "今天" : range === "week" ? "近一周" : "半个月";
+            const isActive = dateRange === range;
+            return (
+              <button
+                key={range}
+                onClick={() => setDateRange(isActive && range !== "all" ? "all" : range)}
+                className={`text-[11px] px-2.5 py-1 rounded-md border transition-all
+                  ${isActive
+                    ? "text-white bg-orange-500 border-orange-500"
+                    : "text-gray-400 dark:text-slate-500 border-gray-200/60 dark:border-white/[0.08] bg-white/60 dark:bg-white/[0.04] hover:border-orange-300 hover:text-orange-500"
+                  }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+
+          {/* Separator */}
+          <div className="w-px h-4 bg-gray-200/60 dark:bg-white/[0.08] mx-0.5" />
+
+          {/* Export current view */}
+          <button
+            onClick={async () => {
+              if (exportStatus === "idle") {
+                // First click: show confirm
+                setExportStatus("confirm");
+                confirmTimer.current = setTimeout(() => setExportStatus("idle"), 3000);
+                return;
+              }
+              if (exportStatus === "confirm") {
+                // Second click: do export
+                if (confirmTimer.current) clearTimeout(confirmTimer.current);
+                setExportStatus("exporting");
+                try {
+                  if (dateRange === "all") {
+                    await exportAllSingle();
+                  } else {
+                    const now = new Date();
+                    const end = now.toISOString().slice(0, 10);
+                    const start = new Date();
+                    if (dateRange === "today") start.setHours(0, 0, 0, 0);
+                    else if (dateRange === "week") start.setDate(now.getDate() - 7);
+                    else if (dateRange === "half-month") start.setDate(now.getDate() - 15);
+                    await exportRangeSingle(start.toISOString().slice(0, 10), end);
+                  }
+                  setExportStatus("done");
+                  setTimeout(() => setExportStatus("idle"), 3000);
+                } catch (e) { console.error(e); setExportStatus("idle"); }
+              }
+            }}
+            disabled={exportStatus === "exporting"}
+            className={`text-[11px] px-2.5 py-1 rounded-md border transition-all flex items-center gap-1
+              ${exportStatus === "confirm"
+                ? "text-orange-600 border-orange-400 bg-orange-100 dark:bg-orange-500/20"
+                : exportStatus === "done"
+                ? "text-green-600 border-green-300 bg-green-50"
+                : exportStatus === "exporting"
+                ? "text-orange-500 border-orange-300 bg-orange-50 animate-pulse"
+                : "text-gray-400 dark:text-slate-500 border-gray-200/60 dark:border-white/[0.08] bg-white/60 dark:bg-white/[0.04] hover:border-orange-300 hover:text-orange-500"
+              }`}
+          >
+            {exportStatus === "confirm" ? "确认导出？" : exportStatus === "exporting" ? "导出中..." : exportStatus === "done" ? "✓ 已导出" : "↗ 导出"}
+          </button>
+
+          {/* Capture status */}
+          <div className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-slate-500 ml-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${captureEnabled ? "bg-green-400" : "bg-gray-300 dark:bg-slate-600"}`} />
+            {captureEnabled ? "捕获中" : "已暂停"}
+          </div>
         </div>
       </div>
 

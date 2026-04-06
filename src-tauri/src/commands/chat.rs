@@ -30,19 +30,20 @@ pub async fn chat_with_content(
     let repo = Repository::new(db);
 
     // Read AI settings
+    let provider = repo
+        .get_setting("ai_provider")
+        .map_err(|e| format!("读取 AI 提供商失败: {}", e))?
+        .unwrap_or_else(|| "anthropic".to_string());
+
     let api_key = repo
-        .get_setting("ai_api_key")
-        .map_err(|e| format!("读取 API Key 失败: {}", e))?
+        .get_setting(&format!("ai_api_key_{}", provider))
+        .ok().flatten()
+        .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
         .unwrap_or_default();
 
     if api_key.is_empty() {
         return Err("请先在设置中配置 AI API Key".to_string());
     }
-
-    let provider = repo
-        .get_setting("ai_provider")
-        .map_err(|e| format!("读取 AI 提供商失败: {}", e))?
-        .unwrap_or_else(|| "anthropic".to_string());
 
     let model = repo
         .get_setting("ai_model")

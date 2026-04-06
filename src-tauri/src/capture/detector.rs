@@ -120,6 +120,7 @@ async fn fetch_url_content(content_id: String, url: String, db: Arc<Database>, a
 
     match result {
         Ok(result) => {
+            let db_for_summary = db.clone();
             let repo = Repository::new(db);
             if let Err(e) = repo.update_content_for_url(
                 &content_id,
@@ -133,6 +134,10 @@ async fn fetch_url_content(content_id: String, url: String, db: Arc<Database>, a
                     content_id,
                     result.content.len(),
                     result.title
+                );
+                // Generate AI summary + tags after URL content is ready
+                crate::commands::capture::spawn_summary_task(
+                    db_for_summary, app.clone(), content_id.clone(), result.content.clone(),
                 );
                 let _ = app.emit(
                     "content:url-fetched",
@@ -232,6 +237,15 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
                 content.source_url
             );
 
+            // For pure text content, generate AI summary immediately
+            if content.content_type.as_str() == "text" {
+                if let Some(ref text) = content.raw_text {
+                    crate::commands::capture::spawn_summary_task(
+                        db.clone(), app.clone(), content.id.clone(), text.clone(),
+                    );
+                }
+            }
+
             // For URL content, spawn background fetch via Jina Reader
             // Only fetch if raw_text is empty or equals source_url (not fetched yet)
             if content.content_type.as_str() == "url" {
@@ -293,11 +307,15 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
                             move || super::ocr::recognize_text(&path)
                         }).await {
                             Ok(Ok(text)) => {
+                                let db_for_summary = db_clone.clone();
                                 let repo = Repository::new(db_clone);
                                 if let Err(e) = repo.update_raw_text(&content_id, &text) {
                                     log::error!("[OCR] Failed to save: {}", e);
                                 } else {
                                     log::info!("[OCR] Auto-OCR done for {}: {} chars", content_id, text.len());
+                                    crate::commands::capture::spawn_summary_task(
+                                        db_for_summary, app_clone.clone(), content_id.clone(), text.clone(),
+                                    );
                                     let _ = app_clone.emit(
                                         "content:ocr-done",
                                         serde_json::json!({
@@ -320,7 +338,9 @@ fn handle_auto_save(app: &AppHandle, data: serde_json::Value) {
         }
         Err(e) => {
             if e.contains("Duplicate content") {
-                log::debug!("Skipped duplicate content");
+                log::debug!("Duplicate content moved to top");
+                // Notify frontend to refresh (order changed)
+                let _ = app.emit("content:url-fetched", serde_json::json!({"id": "", "reorder": true}));
             } else {
                 log::error!("Failed to auto-save content: {}", e);
             }
@@ -358,40 +378,66 @@ fn make_window_transparent(win: &tauri::WebviewWindow) {
 
     let ns_view_ptr = appkit.ns_view.as_ptr() as usize;
 
-    // Use dispatch crate to ensure main thread execution
-    dispatch::Queue::main().exec_async(move || {
-        unsafe {
-            use objc2::runtime::{AnyClass, AnyObject};
+    // Execute synchronously — caller (show_bubble_window) already runs on main thread
+    // via run_on_main_thread, so no dispatch needed. This ensures transparency is
+    // fully applied BEFORE the window becomes visible.
+    unsafe {
+        use objc2::runtime::{AnyClass, AnyObject, Sel};
 
-            let ns_view: &AnyObject = &*(ns_view_ptr as *const AnyObject);
+        let ns_view: &AnyObject = &*(ns_view_ptr as *const AnyObject);
 
-            let ns_window: *const AnyObject = objc2::msg_send![ns_view, window];
-            if ns_window.is_null() {
-                return;
-            }
-            let ns_window: &AnyObject = &*ns_window;
-
-            let _: () = objc2::msg_send![ns_window, setOpaque: false];
-            let _: () = objc2::msg_send![ns_window, setHasShadow: false];
-
-            let ns_color_cls = AnyClass::get("NSColor").unwrap();
-            let clear_color: *const AnyObject = objc2::msg_send![ns_color_cls, clearColor];
-            let _: () = objc2::msg_send![ns_window, setBackgroundColor: clear_color];
-
-            let _: () = objc2::msg_send![ns_window, setAcceptsMouseMovedEvents: true];
+        let ns_window: *const AnyObject = objc2::msg_send![ns_view, window];
+        if ns_window.is_null() {
+            return;
         }
-    });
+        let ns_window: &AnyObject = &*ns_window;
 
-    log::info!("Window transparency dispatched to main thread");
+        let _: () = objc2::msg_send![ns_window, setOpaque: false];
+        let _: () = objc2::msg_send![ns_window, setHasShadow: false];
+
+        let ns_color_cls = AnyClass::get("NSColor").unwrap();
+        let clear_color: *const AnyObject = objc2::msg_send![ns_color_cls, clearColor];
+        let _: () = objc2::msg_send![ns_window, setBackgroundColor: clear_color];
+
+        let _: () = objc2::msg_send![ns_window, setAcceptsMouseMovedEvents: true];
+
+        // Disable background drawing on WKWebView and subviews
+        let content_view: *const AnyObject = objc2::msg_send![ns_window, contentView];
+        if !content_view.is_null() {
+            fn disable_bg(view: &objc2::runtime::AnyObject) {
+                unsafe {
+                    use objc2::runtime::{AnyObject, Sel};
+                    let sel = Sel::register("_setDrawsBackground:");
+                    let responds: bool = objc2::msg_send![view, respondsToSelector: sel];
+                    if responds {
+                        let _: () = objc2::msg_send![view, _setDrawsBackground: false];
+                    }
+                    let sel2 = Sel::register("setDrawsBackground:");
+                    let responds2: bool = objc2::msg_send![view, respondsToSelector: sel2];
+                    if responds2 {
+                        let _: () = objc2::msg_send![view, setDrawsBackground: false];
+                    }
+                    let subviews: *const AnyObject = objc2::msg_send![view, subviews];
+                    if !subviews.is_null() {
+                        let count: usize = objc2::msg_send![subviews, count];
+                        for i in 0..count {
+                            let sub: *const AnyObject = objc2::msg_send![subviews, objectAtIndex: i];
+                            if !sub.is_null() { disable_bg(&*sub); }
+                        }
+                    }
+                }
+            }
+            disable_bg(&*content_view);
+        }
+    }
+
+    log::info!("Window transparency applied synchronously");
 }
 
-/// Force the bubble window to become the focused (key) window on macOS.
-/// This requires two steps:
-/// 1. Activate the app itself (NSApp.activateIgnoringOtherApps) — without this,
-///    macOS won't give focus to a background app's window.
-/// 2. Make the window the key window (makeKeyAndOrderFront).
+/// Show the bubble window without stealing focus from the current app.
+/// Strategy: record frontmost app before showing, then reactivate it after.
 #[cfg(target_os = "macos")]
-fn focus_bubble_window(win: &tauri::WebviewWindow) {
+fn show_bubble_without_focus(win: &tauri::WebviewWindow) {
     use raw_window_handle::HasWindowHandle;
 
     let handle = match win.window_handle() {
@@ -410,25 +456,27 @@ fn focus_bubble_window(win: &tauri::WebviewWindow) {
         unsafe {
             use objc2::runtime::{AnyClass, AnyObject};
 
-            // Step 1: Activate the app so macOS allows it to take focus
-            let ns_app_cls = AnyClass::get("NSApplication").unwrap();
-            let ns_app: *const AnyObject = objc2::msg_send![ns_app_cls, sharedApplication];
-            if !ns_app.is_null() {
-                let ns_app: &AnyObject = &*ns_app;
-                let _: () = objc2::msg_send![ns_app, activateIgnoringOtherApps: true];
-            }
+            // 1. Remember the currently active app BEFORE we show our window
+            let workspace_cls = AnyClass::get("NSWorkspace").unwrap();
+            let workspace: *const AnyObject = objc2::msg_send![workspace_cls, sharedWorkspace];
+            let front_app: *const AnyObject = objc2::msg_send![&*workspace, frontmostApplication];
 
-            // Step 2: Make the bubble window the key (focused) window
+            // 2. Show bubble window without activating
             let ns_view: &AnyObject = &*(ns_view_ptr as *const AnyObject);
             let ns_window: *const AnyObject = objc2::msg_send![ns_view, window];
             if !ns_window.is_null() {
                 let ns_window: &AnyObject = &*ns_window;
-                let _: () = objc2::msg_send![ns_window, makeKeyAndOrderFront: std::ptr::null::<AnyObject>()];
+                let _: () = objc2::msg_send![ns_window, orderFrontRegardless];
+            }
+
+            // 3. Reactivate the previous frontmost app so it keeps keyboard focus
+            if !front_app.is_null() {
+                let _: bool = objc2::msg_send![&*front_app, activateWithOptions: 0u64];
             }
         }
     });
 
-    log::info!("Bubble window focus dispatched to main thread");
+    log::info!("Bubble window shown without stealing focus");
 }
 
 /// Dynamically create and show the bubble window at the bottom-right of the screen.
@@ -470,9 +518,9 @@ fn show_bubble_window(app: &AppHandle) {
     };
 
     let is_circle = bubble_style == "circle";
-    // Circle mode: start at capsule size so CSS can animate circle→capsule
+    // Circle mode: 64px height (48px circle + 16px padding for bounce animation)
     let win_w: f64 = if is_circle { 320.0 } else { 340.0 };
-    let win_h: f64 = if is_circle { 48.0 } else { 72.0 };
+    let win_h: f64 = if is_circle { 64.0 } else { 72.0 };
 
     // Determine position based on bubble_position setting
     let (x, y) = if let Some(main_win) = app.get_webview_window("main") {
@@ -534,8 +582,8 @@ fn show_bubble_window(app: &AppHandle) {
     .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
-    .visible(true)
-    .focused(true)
+    .visible(false)
+    .focused(false)
     .accept_first_mouse(true)
     .build()
     {
@@ -543,8 +591,7 @@ fn show_bubble_window(app: &AppHandle) {
             #[cfg(target_os = "macos")]
             {
                 if is_circle {
-                    // Circle mode: make window fully transparent (no vibrancy).
-                    // CSS handles the glass effect + circle→capsule animation.
+                    // Circle mode: apply transparency BEFORE showing window
                     make_window_transparent(&win);
                 } else {
                     // Bar mode: use native vibrancy for glass background
@@ -556,9 +603,13 @@ fn show_bubble_window(app: &AppHandle) {
                         Some(16.0),
                     );
                 }
+                // Show the window without stealing focus from the current app
+                show_bubble_without_focus(&win);
             }
-            // Force focus for both circle and bar modes
-            focus_bubble_window(&win);
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = win.show();
+            }
             log::info!("Bubble window created (style={})", bubble_style);
         }
         Err(e) => {

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 卡片图标方案对比</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #F0EEEC;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page-header {
+    text-align: center;
+    padding: 48px 24px 36px;
+  }
+  .page-header h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .page-header h1 span { color: var(--orange); }
+  .page-header p { font-size: 13px; color: var(--stone-500); line-height: 1.6; max-width: 420px; margin: 0 auto; }
+
+  .proposal {
+    max-width: 560px;
+    margin: 0 auto 48px;
+    padding: 0 20px;
+  }
+  .proposal-head {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px;
+  }
+  .proposal-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--orange); background: var(--orange-light);
+    padding: 3px 10px; border-radius: 4px;
+  }
+  .proposal-title { font-size: 18px; font-weight: 600; }
+  .proposal-desc {
+    font-size: 13px; color: var(--stone-500); line-height: 1.6; margin-bottom: 16px;
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+
+  .card {
+    background: white;
+    border-radius: 14px;
+    border: 1px solid var(--stone-200);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    transform: translateY(-1px);
+  }
+
+  .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+  .tag {
+    font-size: 11px; font-weight: 500;
+    color: var(--orange-deep); background: var(--orange-light);
+    padding: 2px 9px; border-radius: 10px;
+  }
+
+  .summary { font-size: 14px; line-height: 1.75; color: var(--stone-700); }
+
+  .footer {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 12px; padding-top: 8px;
+    border-top: 1px solid var(--stone-100);
+  }
+  .meta {
+    font-size: 11px; color: var(--stone-400);
+    display: flex; gap: 6px; align-items: center;
+  }
+  .meta .sep { color: var(--stone-300); }
+  .freshness { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .fresh-1 { background: #22C55E; }
+  .fresh-2 { background: #FACC15; }
+  .fresh-3 { background: #D6D3D1; }
+
+  .actions { display: flex; gap: 2px; }
+  .actions button {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 11px; color: var(--stone-400);
+    background: none; border: none; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px; transition: all 0.15s;
+  }
+  .actions button:hover { color: var(--orange); background: var(--orange-light); }
+  .actions button.del:hover { color: #EF4444; background: #FEF2F2; }
+
+  .divider {
+    max-width: 560px; margin: 0 auto 48px; padding: 0 20px;
+  }
+  .divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--stone-300), transparent);
+  }
+
+  /* ── A: Side icon ── */
+  .a-inner {
+    padding: 16px 20px 12px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .a-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0; margin-top: 1px;
+  }
+  .a-icon.link { background: #FFF7ED; }
+  .a-icon.image { background: #F0FDF4; }
+  .a-icon.text { background: #EFF6FF; }
+  .a-body { flex: 1; min-width: 0; }
+
+  /* ── B: Color left bar ── */
+  .b-card {
+    border-left: 3px solid transparent;
+    border-radius: 14px;
+  }
+  .b-card.link { border-left-color: var(--orange); }
+  .b-card.image { border-left-color: #22C55E; }
+  .b-card.text { border-left-color: #3B82F6; }
+  .b-inner { padding: 16px 20px 12px; }
+
+  /* ── C: Top accent line ── */
+  .c-card { overflow: hidden; position: relative; }
+  .c-accent {
+    height: 3px; width: 100%;
+  }
+  .c-accent.link { background: linear-gradient(to right, var(--orange), #FDBA74); }
+  .c-accent.image { background: linear-gradient(to right, #22C55E, #86EFAC); }
+  .c-accent.text { background: linear-gradient(to right, #3B82F6, #93C5FD); }
+  .c-inner { padding: 14px 20px 12px; }
+
+  /* ── Image row shared ── */
+  .img-row { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 4px; }
+  .thumb {
+    width: 80px; height: 80px; border-radius: 10px;
+    background: linear-gradient(135deg, #E7E5E4, #D6D3D1);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+  }
+  .img-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .ocr-hint { font-size: 11px; color: var(--stone-400); margin-top: 4px; }
+
+  .pick-row { text-align: center; margin-top: 12px; }
+  .pick-btn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--orange); background: var(--orange-light);
+    border: 1.5px solid #FDBA74; padding: 8px 28px;
+    border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
+  }
+  .pick-btn:hover {
+    background: var(--orange); color: white; border-color: var(--orange);
+    transform: translateY(-1px); box-shadow: 0 4px 12px rgba(249,115,22,0.25);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><span>小云</span> 卡片呼吸感方案</h1>
+  <p>三种方式给纯文字卡片增加视觉节奏，不需要恢复大图标。</p>
+</div>
+
+<!-- ═══════════ A: 左侧小图标 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 A</span>
+    <span class="proposal-title">小图标回归</span>
+  </div>
+  <p class="proposal-desc">把类型图标加回来，但缩小到 32px，只做视觉锚点，不占太多空间。给每张卡片一个起点，眼睛知道从哪里开始读。</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="a-inner">
+        <div class="a-icon link">🔗</div>
+        <div class="a-body">
+          <div class="tags">
+            <span class="tag">旅行</span><span class="tag">散文诗</span><span class="tag">生命释然</span>
+          </div>
+          <p class="summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+          <div class="footer">
+            <div class="meta"><span class="freshness fresh-1"></span><span>1小时前</span><span class="sep">/</span><span>WeChat</span></div>
+            <div class="actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="a-inner">
+        <div class="a-icon image">🖼</div>
+        <div class="a-body">
+          <div class="tags"><span class="tag">开源项目</span><span class="tag">社区共建</span></div>
+          <div class="img-row">
+            <div class="thumb">📊</div>
+            <div class="img-body">
+              <p class="summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+              <span class="ocr-hint">识别了 186 字</span>
+            </div>
+          </div>
+          <div class="footer">
+            <div class="meta"><span class="freshness fresh-2"></span><span>昨天</span><span class="sep">/</span><span>Claude</span></div>
+            <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="a-inner">
+        <div class="a-icon text">📝</div>
+        <div class="a-body">
+          <div class="tags"><span class="tag">注意力即货币</span><span class="tag">信息过载应对</span></div>
+          <p class="summary">你消费的每一条信息都在塑造你的思维模型，所以要像管理投资组合一样管理你的信息输入。</p>
+          <div class="footer">
+            <div class="meta"><span class="freshness fresh-3"></span><span>3天前</span><span class="sep">/</span><span>备忘录</span></div>
+            <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 A：小图标回归')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ B: 左侧色条 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 B</span>
+    <span class="proposal-title">左侧色条</span>
+  </div>
+  <p class="proposal-desc">卡片左边缘加一条 3px 的颜色条：链接橙色、图片绿色、文本蓝色。不加图标，不占空间，但视觉上有节奏，一眼能区分类型。</p>
+
+  <div class="cards">
+    <div class="card b-card link">
+      <div class="b-inner">
+        <div class="tags">
+          <span class="tag">旅行</span><span class="tag">散文诗</span><span class="tag">生命释然</span>
+        </div>
+        <p class="summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-1"></span><span>1小时前</span><span class="sep">/</span><span>WeChat</span></div>
+          <div class="actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card b-card image">
+      <div class="b-inner">
+        <div class="tags"><span class="tag">开源项目</span><span class="tag">社区共建</span></div>
+        <div class="img-row">
+          <div class="thumb">📊</div>
+          <div class="img-body">
+            <p class="summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+            <span class="ocr-hint">识别了 186 字</span>
+          </div>
+        </div>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-2"></span><span>昨天</span><span class="sep">/</span><span>Claude</span></div>
+          <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card b-card text">
+      <div class="b-inner">
+        <div class="tags"><span class="tag">注意力即货币</span><span class="tag">信息过载应对</span></div>
+        <p class="summary">你消费的每一条信息都在塑造你的思维模型，所以要像管理投资组合一样管理你的信息输入。</p>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-3"></span><span>3天前</span><span class="sep">/</span><span>备忘录</span></div>
+          <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 B：左侧色条')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════ C: 顶部渐变线 ═══════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 C</span>
+    <span class="proposal-title">顶部渐变线</span>
+  </div>
+  <p class="proposal-desc">卡片顶部一条 3px 渐变色带：链接橙色、图片绿色、文本蓝色。像书签的彩色标记，不干扰内容，但每张卡片有自己的"表情"。</p>
+
+  <div class="cards">
+    <div class="card c-card">
+      <div class="c-accent link"></div>
+      <div class="c-inner">
+        <div class="tags">
+          <span class="tag">旅行</span><span class="tag">散文诗</span><span class="tag">生命释然</span>
+        </div>
+        <p class="summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-1"></span><span>1小时前</span><span class="sep">/</span><span>WeChat</span></div>
+          <div class="actions"><button>打开链接</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card c-card">
+      <div class="c-accent image"></div>
+      <div class="c-inner">
+        <div class="tags"><span class="tag">开源项目</span><span class="tag">社区共建</span></div>
+        <div class="img-row">
+          <div class="thumb">📊</div>
+          <div class="img-body">
+            <p class="summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+            <span class="ocr-hint">识别了 186 字</span>
+          </div>
+        </div>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-2"></span><span>昨天</span><span class="sep">/</span><span>Claude</span></div>
+          <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card c-card">
+      <div class="c-accent text"></div>
+      <div class="c-inner">
+        <div class="tags"><span class="tag">注意力即货币</span><span class="tag">信息过载应对</span></div>
+        <p class="summary">你消费的每一条信息都在塑造你的思维模型，所以要像管理投资组合一样管理你的信息输入。</p>
+        <div class="footer">
+          <div class="meta"><span class="freshness fresh-3"></span><span>3天前</span><span class="sep">/</span><span>备忘录</span></div>
+          <div class="actions"><button>AI 对话</button><button>复制</button><button class="del">删除</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 C：顶部渐变线')">我选这个</button></div>
+</div>
+
+<div style="height: 60px;"></div>
+</body>
+</html>

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小云 — 卡片布局方案对比</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+
+  :root {
+    --orange: #F97316;
+    --orange-light: #FFF7ED;
+    --orange-mid: #FDBA74;
+    --orange-deep: #EA580C;
+    --stone-50: #FAFAF9;
+    --stone-100: #F5F5F4;
+    --stone-200: #E7E5E4;
+    --stone-300: #D6D3D1;
+    --stone-400: #A8A29E;
+    --stone-500: #78716C;
+    --stone-600: #57534E;
+    --stone-700: #44403C;
+    --stone-800: #292524;
+    --stone-900: #1C1917;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: #F0EEEC;
+    color: var(--stone-800);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    text-align: center;
+    padding: 56px 24px 40px;
+  }
+  .page-header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+  .page-header h1 span { color: var(--orange); }
+  .page-header p {
+    font-size: 14px;
+    color: var(--stone-500);
+    max-width: 460px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── Proposal Section ── */
+  .proposal {
+    max-width: 560px;
+    margin: 0 auto 56px;
+    padding: 0 20px;
+    opacity: 0;
+    animation: rise 0.7s ease forwards;
+  }
+  .proposal:nth-child(2) { animation-delay: 0.1s; }
+  .proposal:nth-child(3) { animation-delay: 0.2s; }
+  .proposal:nth-child(4) { animation-delay: 0.3s; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .proposal-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .proposal-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--orange);
+    background: var(--orange-light);
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .proposal-title {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .proposal-desc {
+    font-size: 13px;
+    color: var(--stone-500);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .cards-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Shared card base ── */
+  .card {
+    background: white;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--stone-200);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .card:hover {
+    box-shadow: 0 6px 24px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+  }
+
+  /* ── Type badge ── */
+  .type-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+  }
+  .type-dot.link { background: var(--orange); }
+  .type-dot.image { background: #22C55E; }
+
+  /* ══════════════════════════════════
+     PROPOSAL A — 摘要优先
+     ══════════════════════════════════ */
+  .a-card { padding: 20px 22px 16px; }
+
+  .a-summary {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.8;
+    color: var(--stone-800);
+    margin-bottom: 12px;
+  }
+
+  .a-tags {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .a-tag {
+    font-size: 11px;
+    color: var(--stone-500);
+    padding: 2px 8px;
+    border: 1px solid var(--stone-200);
+    border-radius: 4px;
+    background: var(--stone-50);
+  }
+
+  .a-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid var(--stone-100);
+  }
+  .a-meta {
+    font-size: 11px;
+    color: var(--stone-400);
+    display: flex; gap: 6px; align-items: center;
+  }
+  .a-meta .sep { color: var(--stone-300); }
+  .a-actions {
+    display: flex; gap: 4px;
+  }
+  .a-actions button {
+    font-size: 11px;
+    color: var(--stone-400);
+    background: none; border: none; cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .a-actions button:hover {
+    color: var(--orange);
+    background: var(--orange-light);
+  }
+
+  /* A — image variant */
+  .a-img-row {
+    display: flex; gap: 14px; align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .a-thumb {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #E7E5E4, #D6D3D1);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .a-img-info { flex: 1; min-width: 0; }
+  .a-ocr-hint {
+    font-size: 11px;
+    color: var(--stone-400);
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .a-ocr-hint:hover { color: var(--orange); }
+
+  /* ══════════════════════════════════
+     PROPOSAL B — 标签+摘要
+     ══════════════════════════════════ */
+  .b-card { padding: 16px 18px 14px; }
+
+  .b-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .b-thumb {
+    width: 48px; height: 48px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #E7E5E4, #D6D3D1);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .b-body { flex: 1; min-width: 0; }
+
+  .b-tags {
+    display: flex; gap: 5px; flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .b-tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--orange-deep);
+    background: var(--orange-light);
+    padding: 2px 9px;
+    border-radius: 10px;
+  }
+
+  .b-summary {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--stone-700);
+  }
+
+  .b-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--stone-100);
+  }
+  .b-meta {
+    font-size: 11px;
+    color: var(--stone-400);
+    display: flex; gap: 6px; align-items: center;
+  }
+  .b-meta .sep { color: var(--stone-300); }
+  .b-actions { display: flex; gap: 4px; }
+  .b-actions button {
+    font-size: 11px;
+    color: var(--stone-400);
+    background: none; border: none; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .b-actions button:hover {
+    color: var(--orange);
+    background: var(--orange-light);
+  }
+  .b-ocr-hint {
+    font-size: 11px;
+    color: var(--stone-400);
+    margin-top: 6px;
+    cursor: pointer;
+  }
+  .b-ocr-hint:hover { color: var(--orange); }
+
+  /* ══════════════════════════════════
+     PROPOSAL C — 极简卡片
+     ══════════════════════════════════ */
+  .c-card {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    border-radius: 10px;
+  }
+
+  .c-thumb {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #E7E5E4, #D6D3D1);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .c-body {
+    flex: 1; min-width: 0;
+  }
+  .c-summary {
+    font-size: 14px;
+    color: var(--stone-700);
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .c-meta {
+    font-size: 11px;
+    color: var(--stone-400);
+    margin-top: 2px;
+    display: flex; gap: 6px; align-items: center;
+  }
+  .c-meta .sep { color: var(--stone-300); }
+
+  .c-tags {
+    display: flex; gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+  }
+  .c-card:hover .c-tags { opacity: 1; }
+  .c-tag {
+    font-size: 10px;
+    color: var(--stone-500);
+    padding: 2px 7px;
+    border: 1px solid var(--stone-200);
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── Pick button ── */
+  .pick-row {
+    text-align: center;
+    padding-top: 4px;
+  }
+  .pick-btn {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--orange);
+    background: var(--orange-light);
+    border: 1.5px solid var(--orange-mid);
+    padding: 8px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .pick-btn:hover {
+    background: var(--orange);
+    color: white;
+    border-color: var(--orange);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(249,115,22,0.25);
+  }
+  .pick-btn:active {
+    transform: translateY(0);
+  }
+
+  /* ── Divider ── */
+  .divider {
+    max-width: 560px;
+    margin: 0 auto 56px;
+    padding: 0 20px;
+    opacity: 0;
+    animation: rise 0.7s ease forwards;
+  }
+  .divider-line {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--stone-300), transparent);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1><span>小云</span> 卡片布局方案</h1>
+  <p>三种不同的信息层级策略，看看哪个更适合你的使用习惯。</p>
+</div>
+
+<!-- ═══════════════════════════════════
+     PROPOSAL A
+     ═══════════════════════════════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 A</span>
+    <span class="proposal-title">摘要优先</span>
+  </div>
+  <p class="proposal-desc">摘要是主角，大字清晰可读。标签退后做辅助。OCR 原文藏起来，只露一个字数提示。像翻杂志一样扫一眼就知道每条内容说了什么。</p>
+
+  <div class="cards-stack">
+    <!-- Link Card -->
+    <div class="card a-card">
+      <p class="a-summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+      <div class="a-tags">
+        <span class="a-tag">旅行</span>
+        <span class="a-tag">散文诗</span>
+        <span class="a-tag">生命释然</span>
+      </div>
+      <div class="a-footer">
+        <div class="a-meta">
+          <span class="type-dot link"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>WeChat</span>
+        </div>
+        <div class="a-actions">
+          <button>打开链接</button>
+          <button>复制</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Card -->
+    <div class="card a-card">
+      <div class="a-img-row">
+        <div class="a-thumb">🖼</div>
+        <div class="a-img-info">
+          <p class="a-summary" style="margin-bottom:4px; font-size:15px;">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+          <span class="a-ocr-hint">识别了 186 字 — 点击查看</span>
+        </div>
+      </div>
+      <div class="a-tags">
+        <span class="a-tag">开源项目</span>
+        <span class="a-tag">开源策略</span>
+        <span class="a-tag">社区共建</span>
+      </div>
+      <div class="a-footer">
+        <div class="a-meta">
+          <span class="type-dot image"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>Claude</span>
+        </div>
+        <div class="a-actions">
+          <button>AI 对话</button>
+          <button>复制</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 A：摘要优先')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════════════════════════════
+     PROPOSAL B
+     ═══════════════════════════════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 B</span>
+    <span class="proposal-title">标签 + 摘要</span>
+  </div>
+  <p class="proposal-desc">标签在最顶部一目了然，摘要紧跟其后。图片卡左边缩略图、右边摘要。紧凑但信息完整，一眼能扫到关键词。</p>
+
+  <div class="cards-stack">
+    <!-- Link Card -->
+    <div class="card b-card">
+      <div class="b-body">
+        <div class="b-tags">
+          <span class="b-tag">旅行</span>
+          <span class="b-tag">散文诗</span>
+          <span class="b-tag">生命释然</span>
+        </div>
+        <p class="b-summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+      </div>
+      <div class="b-footer">
+        <div class="b-meta">
+          <span class="type-dot link"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>WeChat</span>
+        </div>
+        <div class="b-actions">
+          <button>打开链接</button>
+          <button>复制</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Card -->
+    <div class="card b-card">
+      <div class="b-top">
+        <div class="b-thumb">🖼</div>
+        <div class="b-body">
+          <div class="b-tags">
+            <span class="b-tag">开源项目</span>
+            <span class="b-tag">开源策略</span>
+            <span class="b-tag">社区共建</span>
+          </div>
+          <p class="b-summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+          <span class="b-ocr-hint">识别了 186 字 — 点击查看</span>
+        </div>
+      </div>
+      <div class="b-footer">
+        <div class="b-meta">
+          <span class="type-dot image"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>Claude</span>
+        </div>
+        <div class="b-actions">
+          <button>AI 对话</button>
+          <button>复制</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 B：标签+摘要')">我选这个</button></div>
+</div>
+
+<div class="divider"><div class="divider-line"></div></div>
+
+<!-- ═══════════════════════════════════
+     PROPOSAL C
+     ═══════════════════════════════════ -->
+<div class="proposal">
+  <div class="proposal-head">
+    <span class="proposal-label">方案 C</span>
+    <span class="proposal-title">极简列表</span>
+  </div>
+  <p class="proposal-desc">一行摘要 + 时间来源，仅此而已。标签鼠标悬停才出现。信息密度最高，像 Notion 数据库一样，适合大量内容快速浏览。</p>
+
+  <div class="cards-stack">
+    <!-- Link Card -->
+    <div class="card c-card">
+      <div class="c-body">
+        <p class="c-summary">以诗意笔触描绘时空交错的城市漫游，借微景抒发对青春与存在的哲思，倡导释然拥抱当下。</p>
+        <div class="c-meta">
+          <span class="type-dot link"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>WeChat · 链接</span>
+        </div>
+      </div>
+      <div class="c-tags">
+        <span class="c-tag">旅行</span>
+        <span class="c-tag">散文诗</span>
+        <span class="c-tag">生命释然</span>
+      </div>
+    </div>
+
+    <!-- Image Card -->
+    <div class="card c-card">
+      <div class="c-thumb">🖼</div>
+      <div class="c-body">
+        <p class="c-summary">分析小云桌面应用现状，提供从私有工具转向开源社区共建的策略建议。</p>
+        <div class="c-meta">
+          <span class="type-dot image"></span>
+          <span>1小时前</span>
+          <span class="sep">/</span>
+          <span>Claude · 图片</span>
+        </div>
+      </div>
+      <div class="c-tags">
+        <span class="c-tag">开源项目</span>
+        <span class="c-tag">开源策略</span>
+        <span class="c-tag">社区共建</span>
+      </div>
+    </div>
+  </div>
+  <div class="pick-row"><button class="pick-btn" onclick="alert('你选了方案 C：极简列表')">我选这个</button></div>
+</div>
+
+<div style="height: 80px;"></div>
+
+</body>
+</html>

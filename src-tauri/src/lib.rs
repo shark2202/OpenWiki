@@ -110,6 +110,8 @@ pub fn run() {
             commands::capture::debug_log,
             commands::capture::retry_url_fetch,
             commands::capture::ocr_image,
+            commands::capture::get_contents_by_ids,
+            commands::capture::test_ai_connection,
             commands::storage::get_all_content,
             commands::storage::delete_content,
             commands::report::generate_report,
@@ -139,6 +141,9 @@ pub fn run() {
             commands::datahub::set_export_dir,
             commands::datahub::open_export_dir,
             commands::datahub::get_storage_info,
+            commands::datahub::export_all_single,
+            commands::datahub::export_range_single,
+            commands::datahub::open_data_folder,
             commands::attention::get_attention_insights,
             commands::attention::trigger_attention_analysis,
         ])

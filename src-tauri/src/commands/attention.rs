@@ -19,10 +19,13 @@ pub fn get_attention_insights(
 ) -> Result<RadarStatus, String> {
     let repo = Repository::new(state.db.clone());
 
-    // 1. Check if API key is configured
+    // 1. Check if API key is configured (per-provider, with legacy fallback)
+    let provider_str_check = repo.get_setting("ai_provider").ok().flatten()
+        .unwrap_or_else(|| "anthropic".to_string());
     let api_key = repo
-        .get_setting("ai_api_key")
-        .map_err(|e| format!("读取设置失败: {}", e))?
+        .get_setting(&format!("ai_api_key_{}", provider_str_check))
+        .ok().flatten()
+        .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
         .unwrap_or_default();
 
     if api_key.is_empty() {
@@ -33,12 +36,12 @@ pub fn get_attention_insights(
         });
     }
 
-    // 2. Check if we have enough content (at least 1 item in the last 14 days)
+    // 2. Check if we have enough content (at least 5 items in the last 14 days)
     let content_check = repo
-        .get_recent_content_for_analysis(14, 1)
+        .get_recent_content_for_analysis(14, 5)
         .map_err(|e| format!("检查内容失败: {}", e))?;
 
-    if content_check.is_empty() {
+    if content_check.len() < 5 {
         return Ok(RadarStatus {
             status: "not_enough_content".to_string(),
             insight: None,
@@ -58,8 +61,28 @@ pub fn get_attention_insights(
             has_new_content: true,
         }),
         Some(insight) => {
-            // Check if currently analyzing
+            // Check if currently analyzing — but detect stale "analyzing" (>5 min = stuck)
             if insight.status == "analyzing" {
+                let analyzed_time = chrono::DateTime::parse_from_rfc3339(&insight.analyzed_at)
+                    .map(|t| t.with_timezone(&chrono::Utc))
+                    .unwrap_or_else(|_| chrono::Utc::now());
+                let elapsed_min = (chrono::Utc::now() - analyzed_time).num_minutes();
+
+                if elapsed_min > 5 {
+                    // Stuck — reset to error so user can retry
+                    let _ = repo.update_insight_status(
+                        insight.id,
+                        "error",
+                        None,
+                        Some("分析超时，请重试"),
+                    );
+                    return Ok(RadarStatus {
+                        status: "error".to_string(),
+                        insight: Some(insight),
+                        has_new_content: true,
+                    });
+                }
+
                 return Ok(RadarStatus {
                     status: "analyzing".to_string(),
                     insight: Some(insight),
@@ -81,7 +104,21 @@ pub fn get_attention_insights(
                 .has_new_content_since(&insight.analyzed_at)
                 .map_err(|e| format!("检查新内容失败: {}", e))?;
 
-            let status = if has_new { "stale" } else { "fresh" };
+            // Check if enough time has passed since last analysis (default: 3 days)
+            let interval_days: i64 = repo
+                .get_setting("radar_interval_days")
+                .ok()
+                .flatten()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(3);
+
+            let analyzed_time = chrono::DateTime::parse_from_rfc3339(&insight.analyzed_at)
+                .map(|t| t.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::Utc::now());
+            let elapsed_days = (chrono::Utc::now() - analyzed_time).num_days();
+            let interval_expired = elapsed_days >= interval_days;
+
+            let status = if has_new && interval_expired { "stale" } else { "fresh" };
 
             Ok(RadarStatus {
                 status: status.to_string(),
@@ -115,28 +152,29 @@ pub async fn trigger_attention_analysis(
     }
 
     // 2. Read AI settings
+    let provider_str = repo
+        .get_setting("ai_provider")
+        .map_err(|e| format!("读取 AI 提供商失败: {}", e))?
+        .unwrap_or_else(|| "anthropic".to_string());
+
     let api_key = repo
-        .get_setting("ai_api_key")
-        .map_err(|e| format!("读取 API Key 失败: {}", e))?
+        .get_setting(&format!("ai_api_key_{}", provider_str))
+        .ok().flatten()
+        .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
         .unwrap_or_default();
 
     if api_key.is_empty() {
         return Err("请先在设置中配置 AI API Key".to_string());
     }
 
-    let provider_str = repo
-        .get_setting("ai_provider")
-        .map_err(|e| format!("读取 AI 提供商失败: {}", e))?
-        .unwrap_or_else(|| "anthropic".to_string());
-
     let model = repo
         .get_setting("ai_model")
         .map_err(|e| format!("读取 AI 模型失败: {}", e))?
         .unwrap_or_else(|| "claude-sonnet-4-20250514".to_string());
 
-    // 3. Get content for analysis (14 days, max 200)
+    // 3. Get content for analysis (14 days, max 100)
     let items = repo
-        .get_recent_content_for_analysis(14, 200)
+        .get_recent_content_for_analysis(14, 100)
         .map_err(|e| format!("获取内容失败: {}", e))?;
 
     if items.is_empty() {
@@ -183,6 +221,7 @@ pub async fn trigger_attention_analysis(
             &model,
             &system_prompt,
             &user_message,
+            8192,
         )
         .await
         {
@@ -190,9 +229,11 @@ pub async fn trigger_attention_analysis(
                 // Validate and parse the response
                 match attention_analyzer::validate_analysis(&raw_response, item_count) {
                     Ok(analysis) => {
-                        // Build response JSON with analysis and id_map
+                        // Build response JSON: BriefingAnalysis fields + id_map
                         let response = serde_json::json!({
-                            "analysis": analysis,
+                            "format_version": analysis.format_version,
+                            "topics": analysis.topics,
+                            "meta": analysis.meta,
                             "id_map": id_map,
                         });
                         let json_str = response.to_string();

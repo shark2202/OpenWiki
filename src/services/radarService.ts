@@ -19,46 +19,30 @@ export interface AttentionInsight {
   is_current: boolean;
 }
 
-export interface AttentionAnalysis {
-  analysis: {
-    recurring_threads: RecurringThread[];
-    unexpected_connections: UnexpectedConnection[];
-    new_obsessions: NewObsession[];
+// v2 Briefing types
+export interface BriefingTopic {
+  id: string;
+  rank: number;
+  insight_title: string;
+  deep_analysis: string;
+  key_findings: string[];
+  suggestion: string | null;
+  evidence_indices: number[];
+  content_count: number;
+  span_days: number;
+  trend: "growing" | "emerging" | "stable" | "fading";
+  tag: "核心关注" | "次要关注" | "新兴关注" | "背景关注";
+}
+
+export interface BriefingAnalysis {
+  format_version: number;
+  topics: BriefingTopic[];
+  meta: {
+    total_content: number;
+    window_days: number;
+    analysis_depth: string;
   };
-  id_map: string[];
-}
-
-export interface RecurringThread {
-  topic: string;
-  title: string;
-  why_now: string;
-  evidence: EvidenceItem[];
-}
-
-export interface UnexpectedConnection {
-  title: string;
-  why_now: string;
-  group_a: EvidenceGroup;
-  group_b: EvidenceGroup;
-}
-
-export interface EvidenceGroup {
-  topic: string;
-  evidence: EvidenceItem[];
-}
-
-export interface NewObsession {
-  topic: string;
-  title: string;
-  why_now: string;
-  since_days: number;
-  evidence: EvidenceItem[];
-}
-
-export interface EvidenceItem {
-  index: number;
-  title: string;
-  date: string;
+  id_map: Record<string, string>;
 }
 
 export async function getAttentionInsights(): Promise<RadarStatus> {

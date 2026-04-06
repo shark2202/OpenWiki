@@ -4,7 +4,19 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Glass effect tokens */
+  /* Design System Colors (from DESIGN.md) */
+  --color-bg: #FAFAF8;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #F5F5F0;
+  --color-border: #E7E5E4;
+  --color-text-primary: #1C1917;
+  --color-text-secondary: #57534E;
+  --color-text-muted: #A8A29E;
+  --color-accent: #F97316;
+  --color-accent-hover: #EA580C;
+  --color-accent-soft: #FFF7ED;
+
+  /* Glass effect tokens — warm neutral, no indigo glow */
   --glass-bg: rgba(255, 255, 255, 0.45);
   --glass-bg-heavy: rgba(255, 255, 255, 0.6);
   --glass-bg-elevated: rgba(255, 255, 255, 0.85);
@@ -13,12 +25,23 @@
   --glass-blur: 20px;
   --glass-blur-heavy: 28px;
   --glass-blur-elevated: 40px;
-  --glass-shadow: 0 8px 32px rgba(99, 102, 241, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
-  --glass-shadow-elevated: 0 24px 80px rgba(0, 0, 0, 0.18), 0 0 40px rgba(99, 102, 241, 0.06);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --glass-shadow-elevated: 0 24px 80px rgba(0, 0, 0, 0.12), 0 0 40px rgba(0, 0, 0, 0.04);
   --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .dark {
+  --color-bg: #0C0A09;
+  --color-surface: #1C1917;
+  --color-surface-raised: #292524;
+  --color-border: #3D3935;
+  --color-text-primary: #FAFAF8;
+  --color-text-secondary: #A8A29E;
+  --color-text-muted: #78716C;
+  --color-accent: #FB923C;
+  --color-accent-hover: #F97316;
+  --color-accent-soft: #431407;
+
   --glass-bg: rgba(15, 15, 30, 0.65);
   --glass-bg-heavy: rgba(15, 15, 30, 0.75);
   --glass-bg-elevated: rgba(15, 15, 30, 0.92);
@@ -28,7 +51,7 @@
   --glass-blur-heavy: 28px;
   --glass-blur-elevated: 40px;
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  --glass-shadow-elevated: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.08);
+  --glass-shadow-elevated: 0 24px 80px rgba(0, 0, 0, 0.5);
   --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -36,9 +59,10 @@ body {
   margin: 0;
   padding: 0;
   font-family:
+    "Plus Jakarta Sans",
+    "Cabinet Grotesk",
     -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
     "PingFang SC",
     "Hiragino Sans GB",
     "Microsoft YaHei",
@@ -46,6 +70,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
 }
 
 /* Smooth theme transition */
@@ -86,98 +112,15 @@ html.transparent-window #root {
   box-shadow: var(--glass-shadow-elevated), var(--glass-inner-glow);
 }
 
-/* ---- Floating background orbs ---- */
-@keyframes float-slow {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(30px, -40px) scale(1.05); }
-  50% { transform: translate(-20px, 20px) scale(0.95); }
-  75% { transform: translate(15px, 35px) scale(1.02); }
-}
-
-@keyframes float-medium {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-40px, 30px) scale(1.08); }
-  66% { transform: translate(25px, -25px) scale(0.96); }
-}
-
-@keyframes float-fast {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-30px, -30px) scale(1.1); }
-}
-
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.5;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.orb-1 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(129, 140, 248, 0.5), transparent 70%);
-  top: -80px;
-  right: -60px;
-  animation: float-slow 20s ease-in-out infinite;
-}
-
-.orb-2 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 70%);
-  bottom: 15%;
-  left: -80px;
-  animation: float-medium 15s ease-in-out infinite;
-}
-
-.orb-3 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(244, 114, 182, 0.4), transparent 70%);
-  top: 35%;
-  right: 5%;
-  animation: float-fast 12s ease-in-out infinite;
-}
-
-.orb-4 {
-  width: 280px;
-  height: 280px;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.35), transparent 70%);
-  bottom: -40px;
-  right: 25%;
-  animation: float-slow 18s ease-in-out infinite reverse;
-}
-
-/* Dark mode orbs — richer saturation for contrast against dark glass */
-.dark .orb { opacity: 0.6; filter: blur(70px); }
-.dark .orb-1 {
-  width: 450px; height: 450px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.7), transparent 70%);
-}
-.dark .orb-2 {
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.6), transparent 70%);
-}
-.dark .orb-3 {
-  width: 320px; height: 320px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.5), transparent 70%);
-}
-.dark .orb-4 {
-  width: 350px; height: 350px;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.45), transparent 70%);
-}
-
 /* Gentle highlight fade animation for navigated-to content cards */
 @keyframes highlight-fade {
   0% {
-    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.35), 0 4px 16px rgba(129, 140, 248, 0.15);
-    background-color: rgba(238, 242, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3), 0 4px 16px rgba(249, 115, 22, 0.1);
+    background-color: rgba(255, 247, 237, 0.7);
   }
   50% {
-    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15), 0 4px 12px rgba(129, 140, 248, 0.06);
-    background-color: rgba(238, 242, 255, 0.35);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12), 0 4px 12px rgba(249, 115, 22, 0.04);
+    background-color: rgba(255, 247, 237, 0.35);
   }
   100% {
     box-shadow: none;
@@ -187,12 +130,6 @@ html.transparent-window #root {
 
 .animate-highlight-fade {
   animation: highlight-fade 3.5s ease-out forwards;
-}
-
-/* Card hover lift effect */
-@keyframes subtle-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(129, 140, 248, 0.05); }
-  50% { box-shadow: 0 0 20px rgba(129, 140, 248, 0.1); }
 }
 
 /* ---- Scrollbar ---- */

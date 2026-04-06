@@ -131,9 +131,9 @@ export function FloatingBubble() {
               bg-white/80 dark:bg-slate-800/90
               backdrop-blur-xl
               border border-white/50 dark:border-white/[0.1]
-              shadow-[0_8px_32px_rgba(0,0,0,0.12),0_2px_8px_rgba(99,102,241,0.15)]
-              dark:shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(99,102,241,0.2)]
-              hover:shadow-[0_8px_40px_rgba(99,102,241,0.25)]
+              shadow-[0_8px_32px_rgba(0,0,0,0.12),0_2px_8px_rgba(249,115,22,0.15)]
+              dark:shadow-[0_8px_32px_rgba(0,0,0,0.4),0_2px_8px_rgba(249,115,22,0.2)]
+              hover:shadow-[0_8px_40px_rgba(249,115,22,0.25)]
               hover:scale-[1.03]
               active:scale-[0.98]
               transition-all duration-200
@@ -164,13 +164,13 @@ export function FloatingBubble() {
                 />
                 <defs>
                   <linearGradient id="countdown-gradient" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#818cf8" />
-                    <stop offset="100%" stopColor="#a78bfa" />
+                    <stop offset="0%" stopColor="#F97316" />
+                    <stop offset="100%" stopColor="#FB923C" />
                   </linearGradient>
                 </defs>
               </svg>
               {/* Countdown number */}
-              <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-indigo-500 dark:text-indigo-400">
+              <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-orange-500 dark:text-orange-400">
                 {countdown}
               </span>
             </div>
@@ -186,8 +186,8 @@ export function FloatingBubble() {
             </div>
 
             {/* Save icon — appears on hover */}
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-              <svg className="w-4 h-4 text-indigo-500 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="w-7 h-7 rounded-lg bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+              <svg className="w-4 h-4 text-orange-500 dark:text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             </div>
