@@ -6657,6 +6657,7 @@ name = "xiaoyun"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "chrono",
  "dirs",
  "dispatch",
@@ -6665,6 +6666,8 @@ dependencies = [
  "notify",
  "objc2 0.5.2",
  "once_cell",
+ "open",
+ "rand 0.8.5",
  "raw-window-handle",
  "regex",
  "reqwest 0.12.28",

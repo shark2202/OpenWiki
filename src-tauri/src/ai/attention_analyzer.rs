@@ -862,13 +862,19 @@ pub async fn try_codex_call(
     system_prompt: &str,
     user_message: &str,
 ) -> Option<Result<String, String>> {
-    let (access_token, account_id) = crate::ai::oauth::get_valid_token(db).await?;
-    let model = "gpt-4o";
+    let (access_token, account_id) = crate::ai::oauth::get_valid_token(db.clone()).await?;
+    // Read user's selected model, default to gpt-5.1-codex
+    let repo = crate::storage::repository::Repository::new(db);
+    let model = repo
+        .get_setting("ai_model")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "gpt-5.1-codex".to_string());
     Some(
         crate::ai::codex_api::call_codex_api(
             &access_token,
             &account_id,
-            model,
+            &model,
             system_prompt,
             user_message,
         )

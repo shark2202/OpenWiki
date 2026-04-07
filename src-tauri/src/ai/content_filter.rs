@@ -498,6 +498,7 @@ mod tests {
                 digest_action: None,
                 summary: None,
                 tags: None,
+                digest: None,
             }
         };
 

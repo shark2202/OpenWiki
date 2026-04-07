@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 import { getSettings, updateSetting, checkXReaderStatus, type XReaderStatus } from "../services/settingsService";
 
 export type AIProvider = "anthropic" | "openai" | "openrouter" | "dashscope";
@@ -17,9 +18,11 @@ export const MODELS_BY_PROVIDER: Record<AIProvider, AIModelOption[]> = {
     { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
   ],
   openai: [
-    { id: "gpt-4o", label: "GPT-4o" },
-    { id: "gpt-4o-mini", label: "GPT-4o Mini" },
-    { id: "gpt-4-turbo", label: "GPT-4 Turbo" },
+    { id: "gpt-5.4", label: "GPT-5.4" },
+    { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+    { id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+    { id: "gpt-5.2-codex", label: "GPT-5.2 Codex" },
+    { id: "gpt-5.1-codex", label: "GPT-5.1 Codex" },
   ],
   openrouter: [
     // ── 免费模型 ──
@@ -149,6 +152,11 @@ interface SettingsState {
   isLoaded: boolean;
   xreaderStatus: XReaderStatus | null;
 
+  // OpenAI OAuth
+  oauthLoggedIn: boolean;
+  oauthEmail: string;
+  oauthLoading: boolean;
+
   loadFromDB: () => Promise<void>;
   setApiKey: (key: string) => void;
   setProvider: (provider: AIProvider) => void;
@@ -166,6 +174,9 @@ interface SettingsState {
   setScreenshotDir: (dir: string) => void;
   setStorageInfo: (totalItems: number, diskUsageMB: number) => void;
   loadXReaderStatus: () => Promise<void>;
+  loadOAuthStatus: () => Promise<void>;
+  startOAuthLogin: () => Promise<void>;
+  logoutOAuth: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -187,6 +198,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   diskUsageMB: 0,
   isLoaded: false,
   xreaderStatus: null,
+
+  oauthLoggedIn: false,
+  oauthEmail: "",
+  oauthLoading: false,
 
   loadFromDB: async () => {
     try {
@@ -242,6 +257,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           "~/Library/Application Support/com.xiaoyun.app/screenshots",
         isLoaded: true,
       });
+
+      // Load OAuth status
+      try {
+        const oauthStatus = await invoke<{ logged_in: boolean; email?: string }>("get_openai_oauth_status");
+        set((prev) => ({ ...prev, oauthLoggedIn: oauthStatus.logged_in, oauthEmail: oauthStatus.email || "" }));
+      } catch {}
     } catch (e) {
       console.error("Failed to load settings from DB:", e);
       applyTheme("system");
@@ -365,6 +386,35 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       set({ xreaderStatus: status });
     } catch (e) {
       console.error("Failed to load x-reader status:", e);
+    }
+  },
+
+  loadOAuthStatus: async () => {
+    try {
+      const status = await invoke<{ logged_in: boolean; email?: string }>("get_openai_oauth_status");
+      set({ oauthLoggedIn: status.logged_in, oauthEmail: status.email || "" });
+    } catch {
+      set({ oauthLoggedIn: false, oauthEmail: "" });
+    }
+  },
+
+  startOAuthLogin: async () => {
+    set({ oauthLoading: true });
+    try {
+      const status = await invoke<{ logged_in: boolean; email?: string }>("start_openai_oauth");
+      set({ oauthLoggedIn: status.logged_in, oauthEmail: status.email || "", oauthLoading: false });
+    } catch (e) {
+      set({ oauthLoading: false });
+      throw e;
+    }
+  },
+
+  logoutOAuth: async () => {
+    try {
+      await invoke("logout_openai_oauth");
+      set({ oauthLoggedIn: false, oauthEmail: "" });
+    } catch (e) {
+      console.error("Logout failed:", e);
     }
   },
 }));

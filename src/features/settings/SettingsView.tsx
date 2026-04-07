@@ -59,6 +59,11 @@ export function SettingsView() {
     setUrlReadingEnabled,
     setRadarIntervalDays,
     loadXReaderStatus,
+    oauthLoggedIn,
+    oauthEmail,
+    oauthLoading,
+    startOAuthLogin,
+    logoutOAuth,
   } = useSettingsStore();
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -151,7 +156,7 @@ export function SettingsView() {
   const categories = [
     { id: "appearance", label: "外观", icon: Palette },
     { id: "capture", label: "采集", icon: Camera },
-    { id: "radar", label: "雷达", icon: Target },
+    { id: "radar", label: "洞察", icon: Target },
     { id: "ai", label: "AI", icon: Bot },
     { id: "connect", label: "连接", icon: LinkIcon },
     { id: "storage", label: "存储", icon: HardDrive },
@@ -356,9 +361,9 @@ export function SettingsView() {
       {/* ===== 雷达 ===== */}
       {activeCategory === "radar" && (
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">雷达</h2>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">洞察</h2>
           <div className="glass rounded-2xl divide-y divide-gray-100/50 dark:divide-white/[0.06]">
-            <SettingRow label="分析频率" desc="注意力雷达自动分析的间隔时间">
+            <SettingRow label="分析频率" desc="洞察报告自动分析的间隔时间">
               <select
                 value={radarIntervalDays}
                 onChange={(e) => setRadarIntervalDays(Number(e.target.value))}
@@ -372,7 +377,7 @@ export function SettingsView() {
             </SettingRow>
           </div>
           <p className="text-xs text-gray-400 dark:text-gray-600 mt-3 px-1">
-            雷达页右上角的刷新按钮可以随时手动触发分析
+            洞察页右上角的刷新按钮可以随时手动触发分析
           </p>
         </div>
       )}
@@ -416,6 +421,51 @@ export function SettingsView() {
               ))}
             </select>
           </SettingRow>
+
+          {/* OpenAI OAuth Login */}
+          {provider === "openai" && (
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">账号登录</div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">使用 ChatGPT 订阅额度</div>
+                </div>
+              </div>
+              {oauthLoggedIn ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-green-600 dark:text-green-400">✓ 已登录</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{oauthEmail}</span>
+                  </div>
+                  <button
+                    onClick={logoutOAuth}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200/50 dark:border-white/[0.08] text-gray-500 dark:text-slate-400 hover:bg-gray-100/50 dark:hover:bg-white/[0.04] transition-colors"
+                  >
+                    退出登录
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await startOAuthLogin();
+                      } catch (e) {
+                        alert(typeof e === "string" ? e : "登录失败，请重试");
+                      }
+                    }}
+                    disabled={oauthLoading}
+                    className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-[#10a37f] hover:bg-[#0d8c6d] text-white transition-colors disabled:opacity-50 disabled:cursor-default"
+                  >
+                    {oauthLoading ? "等待浏览器授权..." : "登录 OpenAI 账号"}
+                  </button>
+                  <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
+                    登录后无需 API Key，直接使用 ChatGPT 订阅额度
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* API Key */}
           <div className="p-4">
