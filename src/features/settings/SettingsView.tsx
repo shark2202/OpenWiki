@@ -64,6 +64,11 @@ export function SettingsView() {
     oauthLoading,
     startOAuthLogin,
     logoutOAuth,
+    geminiOauthLoggedIn,
+    geminiOauthEmail,
+    geminiOauthLoading,
+    startGeminiOAuthLogin,
+    logoutGeminiOAuth,
   } = useSettingsStore();
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -461,6 +466,48 @@ export function SettingsView() {
                   </button>
                   <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
                     登录后无需 API Key，直接使用 ChatGPT 订阅额度
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Google OAuth Login */}
+          {provider === "google" && (
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">账号登录</div>
+                  <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">免费使用 Gemini 模型</div>
+                </div>
+              </div>
+              {geminiOauthLoggedIn ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-green-600 dark:text-green-400">✓ 已登录</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{geminiOauthEmail}</span>
+                  </div>
+                  <button
+                    onClick={logoutGeminiOAuth}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200/50 dark:border-white/[0.08] text-gray-500 dark:text-slate-400 hover:bg-gray-100/50 dark:hover:bg-white/[0.04] transition-colors"
+                  >
+                    退出登录
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={async () => {
+                      try { await startGeminiOAuthLogin(); }
+                      catch (e) { alert(typeof e === "string" ? e : "登录失败，请重试"); }
+                    }}
+                    disabled={geminiOauthLoading}
+                    className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-[#4285f4] hover:bg-[#3367d6] text-white transition-colors disabled:opacity-50 disabled:cursor-default"
+                  >
+                    {geminiOauthLoading ? "等待浏览器授权..." : "登录 Google 账号"}
+                  </button>
+                  <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
+                    登录后无需 API Key，免费使用 Gemini 模型
                   </p>
                 </div>
               )}

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { getSettings, updateSetting, checkXReaderStatus, type XReaderStatus } from "../services/settingsService";
 
-export type AIProvider = "anthropic" | "openai" | "openrouter" | "dashscope";
+export type AIProvider = "anthropic" | "openai" | "openrouter" | "dashscope" | "google";
 
 export interface AIModelOption {
   id: string;
@@ -73,6 +73,11 @@ export const MODELS_BY_PROVIDER: Record<AIProvider, AIModelOption[]> = {
     { id: "qwen-max", label: "Qwen Max" },
     { id: "qwen-long", label: "Qwen Long" },
   ],
+  google: [
+    { id: "gemini-3-flash", label: "Gemini 3 Flash" },
+    { id: "gemini-3-pro", label: "Gemini 3 Pro" },
+    { id: "gemini-3.1-pro", label: "Gemini 3.1 Pro" },
+  ],
 };
 
 export const PROVIDER_LABELS: Record<AIProvider, string> = {
@@ -80,9 +85,10 @@ export const PROVIDER_LABELS: Record<AIProvider, string> = {
   openai: "OpenAI",
   openrouter: "OpenRouter",
   dashscope: "阿里云百炼",
+  google: "Google",
 };
 
-const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter", "dashscope"];
+const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter", "dashscope", "google"];
 
 export type CaptureMode = "auto" | "confirm";
 export type BubbleStyle = "circle" | "bar";
@@ -157,6 +163,14 @@ interface SettingsState {
   oauthEmail: string;
   oauthLoading: boolean;
 
+  // Gemini OAuth
+  geminiOauthLoggedIn: boolean;
+  geminiOauthEmail: string;
+  geminiOauthLoading: boolean;
+  loadGeminiOAuthStatus: () => Promise<void>;
+  startGeminiOAuthLogin: () => Promise<void>;
+  logoutGeminiOAuth: () => Promise<void>;
+
   loadFromDB: () => Promise<void>;
   setApiKey: (key: string) => void;
   setProvider: (provider: AIProvider) => void;
@@ -202,6 +216,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   oauthLoggedIn: false,
   oauthEmail: "",
   oauthLoading: false,
+
+  geminiOauthLoggedIn: false,
+  geminiOauthEmail: "",
+  geminiOauthLoading: false,
 
   loadFromDB: async () => {
     try {
@@ -262,6 +280,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       try {
         const oauthStatus = await invoke<{ logged_in: boolean; email?: string }>("get_openai_oauth_status");
         set((prev) => ({ ...prev, oauthLoggedIn: oauthStatus.logged_in, oauthEmail: oauthStatus.email || "" }));
+      } catch {}
+
+      // Load Gemini OAuth status
+      try {
+        const geminiStatus = await invoke<{ logged_in: boolean; email?: string }>("get_gemini_oauth_status");
+        set((prev) => ({ ...prev, geminiOauthLoggedIn: geminiStatus.logged_in, geminiOauthEmail: geminiStatus.email || "" }));
       } catch {}
     } catch (e) {
       console.error("Failed to load settings from DB:", e);
@@ -415,6 +439,35 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       set({ oauthLoggedIn: false, oauthEmail: "" });
     } catch (e) {
       console.error("Logout failed:", e);
+    }
+  },
+
+  loadGeminiOAuthStatus: async () => {
+    try {
+      const status = await invoke<{ logged_in: boolean; email?: string }>("get_gemini_oauth_status");
+      set({ geminiOauthLoggedIn: status.logged_in, geminiOauthEmail: status.email || "" });
+    } catch {
+      set({ geminiOauthLoggedIn: false, geminiOauthEmail: "" });
+    }
+  },
+
+  startGeminiOAuthLogin: async () => {
+    set({ geminiOauthLoading: true });
+    try {
+      const status = await invoke<{ logged_in: boolean; email?: string }>("start_gemini_oauth");
+      set({ geminiOauthLoggedIn: status.logged_in, geminiOauthEmail: status.email || "", geminiOauthLoading: false });
+    } catch (e) {
+      set({ geminiOauthLoading: false });
+      throw e;
+    }
+  },
+
+  logoutGeminiOAuth: async () => {
+    try {
+      await invoke("logout_gemini_oauth");
+      set({ geminiOauthLoggedIn: false, geminiOauthEmail: "" });
+    } catch (e) {
+      console.error("Gemini logout failed:", e);
     }
   },
 }));
