@@ -1,4 +1,4 @@
-export type WikiPageType = "concept" | "entity" | "source" | "comparison" | "overview";
+export type WikiPageType = "concept" | "entity" | "source" | "comparison" | "overview" | "qa";
 export type WikiPageStatus = "active" | "needs_recompile" | "draft" | "archived";
 export type WikiEdgeRelation = "related" | "part_of" | "contradicts" | "extends" | "compares";
 
@@ -76,4 +76,22 @@ export interface WikiGraphNode {
 export interface WikiGraphData {
   nodes: WikiGraphNode[];
   edges: { source: string; target: string; relation: string; weight: number }[];
+}
+
+export interface WikiChatSession {
+  id: string;
+  title?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WikiChatMessage {
+  id: string;
+  session_id: string;
+  role: "user" | "assistant";
+  content: string;
+  pages_used?: string;
+  source_mode?: "knowledge_base" | "mixed" | "ai_only";
+  turn_index: number;
+  created_at: string;
 }

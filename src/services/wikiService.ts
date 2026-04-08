@@ -58,24 +58,37 @@ export async function triggerWikiAutoCompile(): Promise<{
   return invoke("trigger_wiki_auto_compile");
 }
 
-// ===== Q&A =====
+// ===== Q&A (multi-turn chat) =====
 
-export async function wikiAsk(question: string): Promise<{
-  conversation_id: string;
+export async function wikiAsk(sessionId: string, question: string): Promise<{
+  message_id: string;
   answer: string;
-  pages_used: string[];
+  pages_used: { id: string; title: string }[];
+  source_mode: "knowledge_base" | "mixed" | "ai_only";
   confidence: number;
-  suggested_followup: string;
 }> {
-  return invoke("wiki_ask", { question });
+  return invoke("wiki_ask", { sessionId, question });
 }
 
+export async function getChatSessions(limit?: number): Promise<import("../types/wiki").WikiChatSession[]> {
+  return invoke("get_chat_sessions", { limit: limit ?? 20 });
+}
+
+export async function getChatMessages(sessionId: string): Promise<import("../types/wiki").WikiChatMessage[]> {
+  return invoke("get_chat_messages", { sessionId });
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  return invoke("delete_chat_session", { sessionId });
+}
+
+export async function saveMessageAsPage(sessionId: string, messageId: string): Promise<WikiPage> {
+  return invoke("save_message_as_page", { sessionId, messageId });
+}
+
+// Legacy
 export async function getWikiConversations(limit?: number): Promise<WikiConversation[]> {
   return invoke("get_wiki_conversations", { limit: limit ?? 20 });
-}
-
-export async function saveAnswerAsPage(conversationId: string): Promise<WikiPage> {
-  return invoke("save_answer_as_page", { conversationId });
 }
 
 // ===== Lint =====

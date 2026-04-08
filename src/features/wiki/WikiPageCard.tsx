@@ -1,4 +1,4 @@
-import { BookOpen, User, FileText, GitCompare, Layers } from "lucide-react";
+import { BookOpen, User, FileText, GitCompare, Layers, MessageCircle } from "lucide-react";
 import type { WikiPage } from "../../types/wiki";
 
 const TYPE_CONFIG: Record<string, { icon: React.ComponentType<{ className?: string; size?: number }>; label: string; color: string }> = {
@@ -7,6 +7,7 @@ const TYPE_CONFIG: Record<string, { icon: React.ComponentType<{ className?: stri
   source: { icon: FileText, label: "来源", color: "#16A34A" },
   comparison: { icon: GitCompare, label: "对比", color: "#CA8A04" },
   overview: { icon: Layers, label: "总览", color: "#7C3AED" },
+  qa: { icon: MessageCircle, label: "问答", color: "#78716C" },
 };
 
 function timeAgo(dateStr: string): string {
