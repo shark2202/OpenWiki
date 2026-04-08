@@ -3,7 +3,7 @@ import { Send, X, Plus, Trash2, BookOpen, Loader, ChevronLeft } from "lucide-rea
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { WikiChatSession, WikiChatMessage } from "../../types/wiki";
-import { wikiAsk, getChatSessions, getChatMessages, deleteChatSession, saveMessageAsPage } from "../../services/wikiService";
+import { wikiAsk, getChatSessions, getChatMessages, deleteChatSession, saveMessageAsPage, getWikiPage } from "../../services/wikiService";
 
 interface WikiAskSidebarProps {
   onClose: () => void;
@@ -128,10 +128,56 @@ export function WikiAskSidebar({ onClose, onNavigateToPage }: WikiAskSidebarProp
     }
   };
 
-  const parsePageRefs = (pagesUsed: string | undefined): { id: string; title: string }[] => {
+  // Cache resolved page titles so we don't re-fetch every render
+  const [pageTitleCache, setPageTitleCache] = useState<Record<string, string>>({});
+
+  const resolvePageRefs = useCallback(async (pagesUsed: string | undefined): Promise<{ id: string; title: string }[]> => {
     if (!pagesUsed) return [];
-    try { return JSON.parse(pagesUsed); } catch { return []; }
-  };
+    try {
+      const parsed = JSON.parse(pagesUsed);
+      if (!Array.isArray(parsed)) return [];
+      const refs: { id: string; title: string }[] = [];
+      for (const item of parsed) {
+        if (typeof item === "object" && item && "id" in item && "title" in item) {
+          refs.push(item);
+        } else if (typeof item === "string" && item) {
+          if (pageTitleCache[item]) {
+            refs.push({ id: item, title: pageTitleCache[item] });
+          } else {
+            try {
+              const page = await getWikiPage(item);
+              const title = page?.title || item.slice(0, 12);
+              setPageTitleCache(prev => ({ ...prev, [item]: title }));
+              refs.push({ id: item, title });
+            } catch {
+              refs.push({ id: item, title: item.slice(0, 12) });
+            }
+          }
+        }
+      }
+      return refs;
+    } catch { return []; }
+  }, [pageTitleCache]);
+
+  // Resolved refs per message
+  const [resolvedRefs, setResolvedRefs] = useState<Record<string, { id: string; title: string }[]>>({});
+
+  useEffect(() => {
+    const resolve = async () => {
+      const newRefs: Record<string, { id: string; title: string }[]> = {};
+      for (const msg of messages) {
+        if (msg.role === "assistant" && msg.pages_used) {
+          if (!resolvedRefs[msg.id]) {
+            newRefs[msg.id] = await resolvePageRefs(msg.pages_used);
+          }
+        }
+      }
+      if (Object.keys(newRefs).length > 0) {
+        setResolvedRefs(prev => ({ ...prev, ...newRefs }));
+      }
+    };
+    resolve();
+  }, [messages]);
 
   return (
     <div className="flex flex-col h-full" style={{
@@ -249,12 +295,12 @@ export function WikiAskSidebar({ onClose, onNavigateToPage }: WikiAskSidebarProp
                       </article>
                     </div>
                     {/* Referenced pages */}
-                    {parsePageRefs(msg.pages_used).length > 0 && (
+                    {(resolvedRefs[msg.id] || []).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>引用:</span>
-                        {parsePageRefs(msg.pages_used).map((p) => (
-                          <button key={p.id}
-                            onClick={() => onNavigateToPage?.(p.id)}
+                        {(resolvedRefs[msg.id] || []).map((p, i) => (
+                          <button key={p.id || i}
+                            onClick={() => p.id && onNavigateToPage?.(p.id)}
                             className="text-[10px] px-1.5 py-0.5 rounded-full hover:bg-orange-100 dark:hover:bg-orange-500/15 transition-colors"
                             style={{ color: "#F97316", backgroundColor: "#F9731610", border: "1px solid #F9731625" }}>
                             {p.title}

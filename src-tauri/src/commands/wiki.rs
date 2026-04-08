@@ -428,6 +428,24 @@ pub async fn save_message_as_page(
     };
 
     repo.save_wiki_page(&page).map_err(|e| e.to_string())?;
+
+    // Create deterministic edges from QA page to referenced pages (from pages_used)
+    if let Some(ref pages_json) = asst_msg.pages_used {
+        let referenced_ids: Vec<String> = serde_json::from_str(pages_json).unwrap_or_default();
+        for ref_item in &referenced_ids {
+            // pages_used may contain {id, title} objects or plain strings
+            let ref_id = if let Ok(obj) = serde_json::from_str::<serde_json::Value>(ref_item) {
+                obj.get("id").and_then(|v| v.as_str()).unwrap_or(ref_item).to_string()
+            } else {
+                ref_item.clone()
+            };
+            if !ref_id.is_empty() {
+                let _ = repo.save_wiki_edge(&page_id, &ref_id, "related", 1.0);
+                let _ = repo.save_wiki_edge(&ref_id, &page_id, "related", 1.0); // bidirectional
+            }
+        }
+    }
+
     Ok(page)
 }
 

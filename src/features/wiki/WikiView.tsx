@@ -17,7 +17,6 @@ export function WikiView() {
   }, [loadStats]);
 
   const handleNavigateToPage = (pageId: string) => {
-    setAskOpen(false);
     selectPage(pageId);
     setSubView("browse");
   };
