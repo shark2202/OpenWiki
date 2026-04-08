@@ -54,7 +54,7 @@ export function WikiView() {
   }, [loadStats]);
 
   return (
-    <div className="px-5 py-4">
+    <div className="relative px-5 py-4 flex flex-col" style={{ height: "calc(100vh - 44px)", overflow: subView === "graph" ? "hidden" : "auto" }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>

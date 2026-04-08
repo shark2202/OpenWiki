@@ -116,11 +116,30 @@ const VALID_BUBBLE_POSITIONS: BubblePosition[] = [
   "top-right", "top-center", "top-left",
 ];
 
+// Track the current system theme listener so we can clean it up when theme changes
+let systemThemeCleanup: (() => void) | null = null;
+
 function applyTheme(theme: ThemeMode) {
+  // Clean up previous system theme listener
+  if (systemThemeCleanup) {
+    systemThemeCleanup();
+    systemThemeCleanup = null;
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
   const isDark =
     theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    (theme === "system" && mediaQuery.matches);
   document.documentElement.classList.toggle("dark", isDark);
+
+  // If "system" mode, listen for OS theme changes and auto-update
+  if (theme === "system") {
+    const handler = (e: MediaQueryListEvent) => {
+      document.documentElement.classList.toggle("dark", e.matches);
+    };
+    mediaQuery.addEventListener("change", handler);
+    systemThemeCleanup = () => mediaQuery.removeEventListener("change", handler);
+  }
 }
 
 // Patterns for detecting sensitive data (passwords, private keys, API keys, tokens, secrets)

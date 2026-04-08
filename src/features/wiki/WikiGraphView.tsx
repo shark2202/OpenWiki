@@ -1,7 +1,29 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo, Component, type ReactNode } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useWikiStore } from "../../stores/wikiStore";
 import { WikiPageDetail } from "./WikiPageDetail";
+
+// Error boundary to prevent graph crashes from taking down the entire app
+class GraphErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex flex-col items-center justify-center py-16 gap-2">
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)" }}>图谱渲染出错</p>
+          <p style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{this.state.error}</p>
+          <button onClick={() => this.setState({ error: null })}
+            className="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ color: "#F97316", backgroundColor: "#F9731615", border: "1px solid #F9731630" }}>
+            重试
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const TYPE_COLORS: Record<string, string> = {
   concept: "#F97316",
@@ -29,10 +51,11 @@ interface GraphLink {
   weight: number;
 }
 
-export function WikiGraphView() {
+function WikiGraphViewInner() {
   const { graphData, isLoadingGraph, loadGraph, selectedPage, selectPage, clearSelection, deletePage } = useWikiStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
+  const graphRef = useRef<any>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
 
   useEffect(() => {
     loadGraph();
@@ -40,15 +63,18 @@ export function WikiGraphView() {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const el = containerRef.current;
+    // Use ResizeObserver as single source of truth — it fires after layout
     const obs = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setDimensions({
-          width: entry.contentRect.width,
-          height: Math.max(entry.contentRect.height, 400),
-        });
+        const w = Math.floor(entry.contentRect.width);
+        const h = Math.floor(entry.contentRect.height);
+        if (w > 0 && h > 0) {
+          setDimensions({ width: w, height: h });
+        }
       }
     });
-    obs.observe(containerRef.current);
+    obs.observe(el);
     return () => obs.disconnect();
   }, []);
 
@@ -58,8 +84,7 @@ export function WikiGraphView() {
 
   const nodeCanvasObject = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const label = node.title;
-    const fontSize = Math.max(11 / globalScale, 3);
-    const nodeRadius = Math.max(4, 3 + (node.edge_count || 0) * 1.5);
+    const nodeRadius = Math.max(6, 5 + (node.edge_count || 0) * 2);
     const color = TYPE_COLORS[node.page_type] || "#A8A29E";
     const alpha = node.status === "needs_recompile" ? 0.5 : 1.0;
 
@@ -71,13 +96,44 @@ export function WikiGraphView() {
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Label
-    ctx.font = `${fontSize}px 'Plus Jakarta Sans', sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = "rgba(28, 25, 23, 0.8)";
-    ctx.fillText(label, node.x || 0, (node.y || 0) + nodeRadius + 2);
+    // Label — only show when zoomed in enough to read
+    if (globalScale > 0.6) {
+      const fontSize = Math.min(12 / globalScale, 14);
+      ctx.font = `${fontSize}px 'Plus Jakarta Sans', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const isDark = document.documentElement.classList.contains("dark");
+      const labelAlpha = Math.min((globalScale - 0.6) / 0.4, 1); // fade in between 0.6-1.0
+      ctx.fillStyle = isDark
+        ? `rgba(250, 250, 248, ${0.8 * labelAlpha})`
+        : `rgba(28, 25, 23, ${0.8 * labelAlpha})`;
+      ctx.fillText(label, node.x || 0, (node.y || 0) + nodeRadius + 2);
+    }
   }, []);
+
+  // useMemo MUST be before any early returns to keep hook count stable
+  const graphInput = useMemo(() => {
+    if (!graphData || graphData.nodes.length === 0) return { nodes: [] as GraphNode[], links: [] as GraphLink[] };
+    return {
+      nodes: graphData.nodes.map((n) => ({ ...n })) as GraphNode[],
+      links: graphData.edges.map((e) => ({
+        source: e.source,
+        target: e.target,
+        relation: e.relation,
+        weight: e.weight,
+      })) as GraphLink[],
+    };
+  }, [graphData]);
+
+  // Configure forces: moderate repulsion + center pull for compact circular layout
+  useEffect(() => {
+    const fg = graphRef.current;
+    if (!fg) return;
+    fg.d3Force("charge")?.strength(-120).distanceMax(350);
+    fg.d3Force("link")?.distance(50);
+    fg.d3Force("center")?.strength(0.1);
+    fg.d3ReheatSimulation();
+  }, [graphInput]);
 
   if (isLoadingGraph) {
     return (
@@ -87,7 +143,7 @@ export function WikiGraphView() {
     );
   }
 
-  if (!graphData || graphData.nodes.length === 0) {
+  if (graphInput.nodes.length === 0) {
     return (
       <div className="text-center py-16">
         <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
@@ -97,19 +153,12 @@ export function WikiGraphView() {
     );
   }
 
-  const nodes: GraphNode[] = graphData.nodes.map((n) => ({ ...n }));
-  const links: GraphLink[] = graphData.edges.map((e) => ({
-    source: e.source,
-    target: e.target,
-    relation: e.relation,
-    weight: e.weight,
-  }));
-
   return (
     <div ref={containerRef} className="relative rounded-xl overflow-hidden" style={{
-      height: "calc(100vh - 200px)",
-      backgroundColor: "var(--color-surface-raised, #F5F5F0)",
+      height: "calc(100vh - 170px)",
+      backgroundColor: document.documentElement.classList.contains("dark") ? "#1C1917" : "#F5F5F0",
       border: "1px solid var(--color-border, #E7E5E4)",
+      marginTop: 8,
     }}>
       {/* Legend */}
       <div className="absolute top-3 left-3 z-10 flex gap-3">
@@ -124,25 +173,30 @@ export function WikiGraphView() {
       </div>
 
       <ForceGraph2D
+        ref={graphRef}
         width={dimensions.width}
         height={dimensions.height}
-        graphData={{ nodes, links }}
+        graphData={graphInput}
         nodeId="id"
         nodeCanvasObject={nodeCanvasObject as any}
         nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
-          const r = Math.max(4, 3 + (node.edge_count || 0) * 1.5);
+          const r = Math.max(6, 5 + (node.edge_count || 0) * 2);
           ctx.beginPath();
           ctx.arc(node.x || 0, node.y || 0, r + 4, 0, 2 * Math.PI);
           ctx.fillStyle = color;
           ctx.fill();
         }}
         onNodeClick={handleNodeClick as any}
-        linkColor={() => "rgba(168, 162, 158, 0.3)"}
-        linkWidth={1}
-        cooldownTicks={100}
+        linkColor={() => document.documentElement.classList.contains("dark") ? "rgba(168, 162, 158, 0.3)" : "rgba(120, 113, 108, 0.4)"}
+        linkWidth={0.5}
+        cooldownTicks={200}
+        d3AlphaDecay={0.02}
+        d3VelocityDecay={0.3}
+        dagLevelDistance={80}
         enableZoomInteraction={true}
         enablePanInteraction={true}
-        backgroundColor="transparent"
+        backgroundColor={document.documentElement.classList.contains("dark") ? "#1C1917" : "#F5F5F0"}
+        onEngineStop={() => {}}
       />
 
       {selectedPage && (
@@ -153,5 +207,15 @@ export function WikiGraphView() {
         />
       )}
     </div>
+  );
+}
+
+// Wrapped export with error boundary
+const _WikiGraphViewInner = WikiGraphViewInner;
+export function WikiGraphView() {
+  return (
+    <GraphErrorBoundary>
+      <_WikiGraphViewInner />
+    </GraphErrorBoundary>
   );
 }

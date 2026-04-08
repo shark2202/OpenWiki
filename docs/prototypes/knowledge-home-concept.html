@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小云 · 知识首页概念稿</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fafaf8;
+        --surface: rgba(255, 255, 255, 0.78);
+        --surface-strong: rgba(255, 255, 255, 0.92);
+        --surface-soft: #f5f5f0;
+        --border: rgba(231, 229, 228, 0.9);
+        --border-strong: rgba(249, 115, 22, 0.18);
+        --text-primary: #1c1917;
+        --text-secondary: #57534e;
+        --text-muted: #a8a29e;
+        --accent: #f97316;
+        --accent-soft: rgba(249, 115, 22, 0.1);
+        --shadow: 0 16px 50px rgba(28, 25, 23, 0.08);
+        --shadow-soft: 0 8px 28px rgba(28, 25, 23, 0.06);
+        --radius-xl: 28px;
+        --radius-lg: 20px;
+        --radius-md: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 24%),
+          radial-gradient(circle at top right, rgba(251, 146, 60, 0.08), transparent 22%),
+          linear-gradient(180deg, #fffdf8 0%, var(--bg) 34%, #f6f4ef 100%);
+        color: var(--text-primary);
+        font-family:
+          "Plus Jakarta Sans",
+          "Cabinet Grotesk",
+          -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .app-shell {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 20px 24px 40px;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        padding: 0 18px;
+        border: 1px solid rgba(255, 255, 255, 0.75);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.52);
+        backdrop-filter: blur(22px);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .brand {
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--accent);
+        letter-spacing: -0.02em;
+      }
+
+      .tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        margin: 0 auto;
+        border-radius: 12px;
+        background: rgba(245, 245, 240, 0.78);
+      }
+
+      .tab {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      .tab.active {
+        background: rgba(255, 255, 255, 0.95);
+        color: var(--accent);
+        box-shadow: 0 1px 4px rgba(28, 25, 23, 0.08);
+      }
+
+      .search {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--text-muted);
+        font-size: 13px;
+        min-width: 230px;
+        justify-content: space-between;
+      }
+
+      .search kbd {
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: var(--surface-soft);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        color: var(--text-secondary);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.3fr 0.7fr;
+        gap: 18px;
+        margin-top: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        background: var(--surface);
+        backdrop-filter: blur(26px);
+        box-shadow: var(--shadow);
+      }
+
+      .panel-hero {
+        position: relative;
+        overflow: hidden;
+        padding: 28px 30px 24px;
+      }
+
+      .panel-hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -40px -60px auto;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(circle, rgba(249, 115, 22, 0.16), transparent 68%);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .hero h1 {
+        margin: 18px 0 10px;
+        max-width: 10ch;
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: clamp(34px, 5vw, 58px);
+        line-height: 0.96;
+        letter-spacing: -0.04em;
+      }
+
+      .hero p.lead {
+        max-width: 58ch;
+        margin: 0 0 22px;
+        color: var(--text-secondary);
+        font-size: 15px;
+        line-height: 1.75;
+      }
+
+      .focus-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .focus-card {
+        padding: 18px;
+        border-radius: var(--radius-lg);
+        border: 1px solid rgba(249, 115, 22, 0.12);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 247, 237, 0.78));
+      }
+
+      .focus-card.secondary {
+        border-color: rgba(168, 162, 158, 0.18);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(245, 245, 240, 0.88));
+      }
+
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .focus-card h2,
+      .focus-card h3 {
+        margin: 12px 0 8px;
+        font-family: "Cabinet Grotesk", sans-serif;
+        letter-spacing: -0.03em;
+      }
+
+      .focus-card h2 {
+        font-size: 28px;
+      }
+
+      .focus-card h3 {
+        font-size: 22px;
+      }
+
+      .focus-card p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .chip {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(249, 115, 22, 0.16);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .cta-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 12px 24px rgba(249, 115, 22, 0.2);
+      }
+
+      .button.secondary {
+        border-color: rgba(168, 162, 158, 0.22);
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--text-secondary);
+      }
+
+      .sidebar {
+        display: grid;
+        gap: 14px;
+      }
+
+      .stack {
+        padding: 18px 18px 16px;
+      }
+
+      .stack h3 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .list-item {
+        padding: 12px 12px 11px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.66);
+        border: 1px solid rgba(231, 229, 228, 0.8);
+      }
+
+      .list-item.warning {
+        border-color: rgba(202, 138, 4, 0.25);
+        background: rgba(255, 251, 235, 0.85);
+      }
+
+      .list-item p {
+        margin: 6px 0 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .status.good {
+        color: #16a34a;
+      }
+
+      .status.warn {
+        color: #ca8a04;
+      }
+
+      .status.bad {
+        color: #dc2626;
+      }
+
+      .content {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .next-step {
+        padding: 22px;
+      }
+
+      .next-step h3,
+      .graph-preview h3,
+      .flow-preview h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .single-action {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(255, 247, 237, 0.95), rgba(255, 255, 255, 0.8));
+        border: 1px solid var(--border-strong);
+      }
+
+      .single-action .title {
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .single-action p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.75;
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .mini-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 0;
+        border-top: 1px dashed rgba(168, 162, 158, 0.24);
+      }
+
+      .mini-row:first-of-type {
+        border-top: none;
+      }
+
+      .mini-row strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .mini-row span {
+        color: var(--text-muted);
+        font-size: 11px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .graph-preview,
+      .flow-preview {
+        padding: 22px;
+      }
+
+      .graph-canvas {
+        position: relative;
+        min-height: 270px;
+        border-radius: 20px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 25% 35%, rgba(249, 115, 22, 0.18), transparent 20%),
+          radial-gradient(circle at 75% 25%, rgba(37, 99, 235, 0.12), transparent 22%),
+          radial-gradient(circle at 60% 78%, rgba(22, 163, 74, 0.12), transparent 22%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(245, 245, 240, 0.92));
+        border: 1px solid rgba(231, 229, 228, 0.8);
+      }
+
+      .node {
+        position: absolute;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 84px;
+        padding: 12px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        box-shadow: 0 10px 30px rgba(28, 25, 23, 0.08);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .node.orange { color: #f97316; }
+      .node.blue { color: #2563eb; }
+      .node.green { color: #16a34a; }
+      .node.gold { color: #ca8a04; }
+
+      .line {
+        position: absolute;
+        height: 1px;
+        transform-origin: left center;
+        background: rgba(168, 162, 158, 0.32);
+      }
+
+      .flow-preview .preview-card {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(231, 229, 228, 0.85);
+      }
+
+      .flow-preview .preview-card + .preview-card {
+        margin-top: 12px;
+      }
+
+      .flow-preview h4 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+
+      .flow-preview p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .footer-note {
+        margin-top: 16px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 1100px) {
+        .hero,
+        .content {
+          grid-template-columns: 1fr;
+        }
+
+        .focus-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .app-shell {
+          padding: 14px 14px 28px;
+        }
+
+        .topbar {
+          flex-wrap: wrap;
+          height: auto;
+          padding: 12px;
+          gap: 12px;
+        }
+
+        .tabs {
+          order: 3;
+          width: 100%;
+          justify-content: space-between;
+          margin: 0;
+        }
+
+        .search {
+          min-width: 0;
+          width: 100%;
+        }
+
+        .hero h1 {
+          max-width: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">小云</div>
+        <nav class="tabs" aria-label="主导航">
+          <div class="tab">内容</div>
+          <div class="tab active">知识</div>
+          <div class="tab">洞察</div>
+          <div class="tab">设置</div>
+        </nav>
+        <div class="search">
+          <span>搜索知识、继续追问、找到重点</span>
+          <kbd>⌘K</kbd>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="panel panel-hero">
+          <div class="eyebrow">Knowledge Home · 焦点优先</div>
+          <h1>打开之后，先看到已经长成的知识。</h1>
+          <p class="lead">
+            这一版首页不再把原始内容流、图谱、长报告同时推到你面前，而是先替你收出重点：你最近真正形成了什么主题、哪些知识正在变得更清晰、哪些地方值得你马上继续追问。
+          </p>
+
+          <div class="focus-grid">
+            <article class="focus-card">
+              <div class="meta">
+                <span>当前主线 #1</span>
+                <span>6 条来源</span>
+                <span>今天更新</span>
+              </div>
+              <h2>个人知识库不是收集箱，而是会持续被编译的第二大脑。</h2>
+              <p>
+                你最近围绕“LLM Wiki / 编译式知识 / 个人研究工作流”已经形成一条清晰主线。这个页面应该是你打开产品后第一眼看到的重点，而不是藏在浏览列表里。
+              </p>
+              <div class="chips">
+                <span class="chip">Karpathy</span>
+                <span class="chip">编译式知识</span>
+                <span class="chip">信息闭环</span>
+              </div>
+            </article>
+
+            <article class="focus-card secondary">
+              <div class="meta">
+                <span>当前主线 #2</span>
+                <span>4 条来源</span>
+                <span>待继续追问</span>
+              </div>
+              <h3>产品重点不该是“功能齐全”，而该是“打开后先看哪里”。</h3>
+              <p>
+                你已经把知识页、图谱、Q&A、Lint 都做出来了，接下来最关键的不是再加东西，而是让首页主动收敛出“今天最值得看”的 3 到 5 件事。
+              </p>
+              <div class="chips">
+                <span class="chip">首页聚焦</span>
+                <span class="chip">产品层级</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="cta-row">
+            <div class="button primary">继续阅读当前主线</div>
+            <div class="button secondary">追问这个主题</div>
+          </div>
+        </div>
+
+        <aside class="sidebar">
+          <section class="panel stack">
+            <h3>待处理知识</h3>
+            <div class="list">
+              <div class="list-item warning">
+                <div class="status warn">⚠ needs_recompile</div>
+                <p><strong>知识首页结构</strong></p>
+                <p>部分来源已更新，首页强调“当前主线”的文案需要重新编译。</p>
+              </div>
+              <div class="list-item warning">
+                <div class="status bad">✗ low confidence</div>
+                <p><strong>OpenAI Docs 选型</strong></p>
+                <p>只有 1 条来源仍有效，建议补 1 条官方来源后再继续引用。</p>
+              </div>
+              <div class="list-item">
+                <div class="status good">✓ ready</div>
+                <p><strong>知识图谱定位</strong></p>
+                <p>适合作为探索工具保留，但不再承担首页第一视角。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel stack">
+            <h3>最近新增 / 更新</h3>
+            <div class="list">
+              <div class="list-item">
+                <div class="meta"><span>刚刚</span><span>新增</span></div>
+                <p><strong>知识首页的第一屏原则</strong></p>
+              </div>
+              <div class="list-item">
+                <div class="meta"><span>2 小时前</span><span>更新</span></div>
+                <p><strong>Q&A 只围绕重点主题展开</strong></p>
+              </div>
+              <div class="list-item">
+                <div class="meta"><span>昨天</span><span>新增</span></div>
+                <p><strong>知识库主界面与内容收集箱分层</strong></p>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="content">
+        <section class="panel next-step">
+          <h3>下一步建议</h3>
+          <div class="single-action">
+            <div class="meta">
+              <span>只给一个动作</span>
+              <span>避免首页再次变杂</span>
+            </div>
+            <div class="title">重新编译“知识首页结构”，然后继续追问它怎么成为默认主入口。</div>
+            <p>
+              不是让用户一打开先决定“去内容、去图谱、去洞察还是去提问”，而是系统先替用户收出主线，再把原始内容和工具能力退到第二层。
+            </p>
+            <div class="button primary">现在就去处理</div>
+          </div>
+
+          <div class="mini-list">
+            <div class="mini-row">
+              <div>
+                <strong>为什么不是图谱优先？</strong>
+                <span>图谱更适合探索，不适合首页承载重点。</span>
+              </div>
+              <span>01</span>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>为什么不是内容流优先？</strong>
+                <span>内容层回答“收了什么”，不是“现在最重要的是什么”。</span>
+              </div>
+              <span>02</span>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>为什么不是长报告优先？</strong>
+                <span>洞察应该先给结论，再让用户选择要不要展开全部细节。</span>
+              </div>
+              <span>03</span>
+            </div>
+          </div>
+        </section>
+
+        <div style="display:grid; gap:18px;">
+          <section class="panel graph-preview">
+            <h3>知识脉络预览</h3>
+            <div class="graph-canvas">
+              <div class="node orange" style="left: 32px; top: 54px;">知识首页</div>
+              <div class="node blue" style="left: 254px; top: 38px;">当前主线</div>
+              <div class="node green" style="left: 196px; top: 180px;">下一步建议</div>
+              <div class="node gold" style="left: 390px; top: 132px;">知识图谱</div>
+              <div class="node orange" style="left: 458px; top: 42px;">Q&A</div>
+              <div class="line" style="left: 118px; top: 92px; width: 150px; transform: rotate(-10deg);"></div>
+              <div class="line" style="left: 120px; top: 112px; width: 130px; transform: rotate(32deg);"></div>
+              <div class="line" style="left: 326px; top: 82px; width: 126px; transform: rotate(26deg);"></div>
+              <div class="line" style="left: 292px; top: 194px; width: 118px; transform: rotate(-18deg);"></div>
+            </div>
+            <p class="footer-note">图谱继续保留，但只作为探索工具，不再承担首页第一视角。</p>
+          </section>
+
+          <section class="panel flow-preview">
+            <h3>页面节奏</h3>
+            <div class="preview-card">
+              <h4>第一眼：看到已经形成的重点</h4>
+              <p>不是所有知识页，不是所有内容，而是最近真正长成的 1 到 2 条主线。</p>
+            </div>
+            <div class="preview-card">
+              <h4>第二眼：看到哪里需要处理</h4>
+              <p>待重编、低置信、来源失效的页面直接被提到首页，而不是埋在列表里。</p>
+            </div>
+            <div class="preview-card">
+              <h4>第三眼：只给一个下一步动作</h4>
+              <p>让产品替用户做重点筛选，首页不再是“功能入口广场”，而是“今天应该往哪走”。</p>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

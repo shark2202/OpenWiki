@@ -1,4 +1,4 @@
-import { useEffect, Component, type ReactNode } from "react";
+import { useState, useEffect, Component, type ReactNode } from "react";
 import { RefreshCw, Key, Target, Search } from "lucide-react";
 import { useRadarStore } from "../../stores/radarStore";
 import type {

@@ -72,27 +72,6 @@ export function WikiBrowseView() {
 
       {/* Main area */}
       <div className="flex-1 pl-4">
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search
-            size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            style={{ color: "var(--color-text-muted, #A8A29E)" }}
-          />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => handleSearch(e.target.value)}
-            placeholder="搜索知识页面..."
-            className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none transition-colors"
-            style={{
-              backgroundColor: "var(--color-surface-raised, #F5F5F0)",
-              border: "1px solid var(--color-border, #E7E5E4)",
-              color: "var(--color-text-primary, #1C1917)",
-            }}
-          />
-        </div>
-
         {/* Error */}
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 text-sm text-red-600 dark:text-red-400">

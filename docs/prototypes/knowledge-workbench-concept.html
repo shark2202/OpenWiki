@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小云 · 知识工作台概念稿</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #fafaf8;
+        --bg-soft: #f5f5f0;
+        --surface: rgba(255, 255, 255, 0.76);
+        --surface-strong: rgba(255, 255, 255, 0.9);
+        --border: rgba(231, 229, 228, 0.9);
+        --border-soft: rgba(255, 255, 255, 0.68);
+        --text-primary: #1c1917;
+        --text-secondary: #57534e;
+        --text-muted: #a8a29e;
+        --accent: #f97316;
+        --accent-soft: rgba(249, 115, 22, 0.1);
+        --green: #16a34a;
+        --gold: #ca8a04;
+        --blue: #2563eb;
+        --red: #dc2626;
+        --shadow: 0 18px 52px rgba(28, 25, 23, 0.08);
+        --shadow-soft: 0 10px 26px rgba(28, 25, 23, 0.06);
+        --radius-xl: 28px;
+        --radius-lg: 22px;
+        --radius-md: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(249, 115, 22, 0.09), transparent 24%),
+          radial-gradient(circle at bottom right, rgba(251, 146, 60, 0.08), transparent 24%),
+          linear-gradient(180deg, #fffdf8 0%, var(--bg) 36%, #f4f2ed 100%);
+        color: var(--text-primary);
+        font-family:
+          "Plus Jakarta Sans",
+          "Cabinet Grotesk",
+          -apple-system,
+          BlinkMacSystemFont,
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .shell {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 22px 24px 34px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        height: 56px;
+        padding: 0 18px;
+        border-radius: 18px;
+        border: 1px solid var(--border-soft);
+        background: rgba(255, 255, 255, 0.52);
+        backdrop-filter: blur(22px);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .brand {
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--accent);
+      }
+
+      .tabs {
+        margin: 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        border-radius: 12px;
+        background: rgba(245, 245, 240, 0.8);
+      }
+
+      .tab {
+        padding: 8px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+      }
+
+      .tab.active {
+        color: var(--accent);
+        background: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 1px 4px rgba(28, 25, 23, 0.08);
+      }
+
+      .search {
+        min-width: 250px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 9px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      .search kbd {
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: var(--bg-soft);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        color: var(--text-secondary);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr) 340px;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .panel {
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        backdrop-filter: blur(26px);
+        box-shadow: var(--shadow);
+      }
+
+      .rail,
+      .main,
+      .side {
+        min-height: calc(100vh - 98px);
+      }
+
+      .rail {
+        padding: 20px 16px 18px;
+      }
+
+      .section-label {
+        margin-bottom: 14px;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .theme-stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .theme-item {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(231, 229, 228, 0.92);
+        background: rgba(255, 255, 255, 0.64);
+      }
+
+      .theme-item.active {
+        border-color: rgba(249, 115, 22, 0.22);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 247, 237, 0.88));
+      }
+
+      .theme-item h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .theme-item p {
+        margin: 0 0 10px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        color: var(--text-muted);
+        font-size: 10px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .mini-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        background: rgba(255, 255, 255, 0.84);
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .rail-footer {
+        margin-top: 16px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(245, 245, 240, 0.84);
+        border: 1px dashed rgba(168, 162, 158, 0.28);
+      }
+
+      .rail-footer p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .main {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        gap: 16px;
+        padding: 18px;
+      }
+
+      .hero-card {
+        position: relative;
+        overflow: hidden;
+        padding: 22px 24px;
+        border-radius: 24px;
+        background:
+          radial-gradient(circle at right top, rgba(249, 115, 22, 0.16), transparent 32%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 247, 237, 0.84));
+        border: 1px solid rgba(249, 115, 22, 0.16);
+      }
+
+      .hero-card h1 {
+        margin: 10px 0 10px;
+        max-width: 16ch;
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: 42px;
+        line-height: 0.94;
+        letter-spacing: -0.04em;
+      }
+
+      .hero-card p {
+        max-width: 58ch;
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.75;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 14px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .button.primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 12px 26px rgba(249, 115, 22, 0.2);
+      }
+
+      .button.secondary {
+        border: 1px solid rgba(168, 162, 158, 0.22);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--text-secondary);
+      }
+
+      .row-grid {
+        display: grid;
+        grid-template-columns: 1.12fr 0.88fr;
+        gap: 16px;
+      }
+
+      .block {
+        padding: 18px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(231, 229, 228, 0.86);
+      }
+
+      .block h2 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .page-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .page-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid rgba(231, 229, 228, 0.92);
+      }
+
+      .page-card h3 {
+        margin: 10px 0 6px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .page-card p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .page-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .tag {
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: rgba(249, 115, 22, 0.08);
+        border: 1px solid rgba(249, 115, 22, 0.14);
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .relation-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .relation-item {
+        padding: 12px 12px 10px;
+        border-radius: 16px;
+        background: rgba(245, 245, 240, 0.84);
+      }
+
+      .relation-item strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+
+      .relation-item p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .sources-strip {
+        display: grid;
+        gap: 10px;
+      }
+
+      .source-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(231, 229, 228, 0.84);
+      }
+
+      .source-row .status {
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .source-row strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 13px;
+      }
+
+      .source-row span {
+        color: var(--text-muted);
+        font-size: 11px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .side {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        gap: 16px;
+      }
+
+      .inspector {
+        padding: 18px;
+      }
+
+      .inspector h2 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .selected-theme {
+        padding: 16px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(255, 247, 237, 0.92), rgba(255, 255, 255, 0.78));
+        border: 1px solid rgba(249, 115, 22, 0.18);
+      }
+
+      .selected-theme h3 {
+        margin: 10px 0 8px;
+        font-family: "Cabinet Grotesk", sans-serif;
+        font-size: 28px;
+        line-height: 0.98;
+        letter-spacing: -0.04em;
+      }
+
+      .selected-theme p {
+        margin: 0;
+        color: var(--text-secondary);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .queue {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .queue-item {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(231, 229, 228, 0.86);
+      }
+
+      .queue-item.warning {
+        background: rgba(255, 251, 235, 0.88);
+        border-color: rgba(202, 138, 4, 0.22);
+      }
+
+      .queue-item p {
+        margin: 6px 0 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .ask-panel {
+        padding: 18px;
+      }
+
+      .ask-box {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(245, 245, 240, 0.88);
+        border: 1px solid rgba(231, 229, 228, 0.84);
+      }
+
+      .ask-box h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+
+      .prompt {
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.84);
+        border: 1px solid rgba(231, 229, 228, 0.88);
+        color: var(--text-secondary);
+        font-size: 13px;
+      }
+
+      .ask-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .tiny {
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid rgba(231, 229, 228, 0.84);
+        color: var(--text-secondary);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .tiny.primary {
+        border-color: rgba(249, 115, 22, 0.22);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      @media (max-width: 1280px) {
+        .workspace {
+          grid-template-columns: 260px minmax(0, 1fr);
+        }
+
+        .side {
+          grid-column: 1 / -1;
+          grid-template-columns: repeat(3, 1fr);
+          grid-template-rows: none;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .workspace,
+        .row-grid,
+        .side {
+          grid-template-columns: 1fr;
+        }
+
+        .page-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .shell {
+          padding: 14px 14px 26px;
+        }
+
+        .topbar {
+          flex-wrap: wrap;
+          height: auto;
+          padding: 12px;
+          gap: 12px;
+        }
+
+        .tabs {
+          order: 3;
+          width: 100%;
+          justify-content: space-between;
+          margin: 0;
+        }
+
+        .search {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .workspace {
+          gap: 14px;
+        }
+
+        .hero-card h1 {
+          font-size: 34px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">小云</div>
+        <nav class="tabs">
+          <div class="tab">内容</div>
+          <div class="tab active">知识</div>
+          <div class="tab">洞察</div>
+          <div class="tab">设置</div>
+        </nav>
+        <div class="search">
+          <span>搜索知识页、跳到主题、继续追问</span>
+          <kbd>⌘K</kbd>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="panel rail">
+          <div class="section-label">Themes</div>
+          <div class="theme-stack">
+            <article class="theme-item active">
+              <div class="meta">
+                <span>8 页</span>
+                <span>12 条来源</span>
+              </div>
+              <h3>LLM Wiki / 编译式知识</h3>
+              <p>这是最近最完整的一条知识主线，不是摘要，而是一组已经长出来的页面。</p>
+            </article>
+            <article class="theme-item">
+              <div class="meta">
+                <span>4 页</span>
+                <span>5 条来源</span>
+              </div>
+              <h3>产品聚焦与首页结构</h3>
+              <p>围绕“信息太杂”和“知识如何成为主界面”的持续整理。</p>
+            </article>
+            <article class="theme-item">
+              <div class="meta">
+                <span>3 页</span>
+                <span>4 条来源</span>
+              </div>
+              <h3>OpenAI Docs / 模型选型</h3>
+              <p>偏工具型主题，适合后续补官方来源和清理低置信度页面。</p>
+            </article>
+            <article class="theme-item">
+              <div class="meta">
+                <span>2 页</span>
+                <span>待重编</span>
+              </div>
+              <h3>知识图谱定位</h3>
+              <p>继续保留，但只做探索工具，不再承担首页第一视角。</p>
+            </article>
+          </div>
+
+          <div class="rail-footer">
+            <div class="section-label" style="margin-bottom: 8px;">Why This Home</div>
+            <p>
+              左边不再是功能菜单，而是你的主题簇。打开后先看到“我到底积累了哪些知识块”，而不是先面对原始内容流。
+            </p>
+          </div>
+        </aside>
+
+        <section class="panel main">
+          <section class="hero-card">
+            <div class="mini-badge">当前主题</div>
+            <h1>LLM Wiki / 编译式知识</h1>
+            <p>
+              这里不再给你一段 AI 总结，而是把这个主题下已经成型的知识对象直接摆出来：你可以继续读页面、查看来源、跳去相关主题，或者围绕这个主题继续追问。
+            </p>
+            <div class="hero-actions">
+              <div class="button primary">继续阅读这一组页面</div>
+              <div class="button secondary">围绕这个主题提问</div>
+            </div>
+          </section>
+
+          <section class="row-grid">
+            <section class="block">
+              <h2>这个主题下的知识页</h2>
+              <div class="page-grid">
+                <article class="page-card">
+                  <div class="mini-badge">概念</div>
+                  <h3>LLM Wiki 不是 RAG 的替代，而是知识组织方式的改变</h3>
+                  <p>强调知识先被编译进页面，再被后续问题复用，而不是每次重新从原始文档推导。</p>
+                  <div class="page-tags">
+                    <span class="tag">Karpathy</span>
+                    <span class="tag">编译</span>
+                    <span class="tag">知识页</span>
+                  </div>
+                </article>
+
+                <article class="page-card">
+                  <div class="mini-badge" style="color: var(--blue); border-color: rgba(37, 99, 235, 0.16); background: rgba(37, 99, 235, 0.08);">实体</div>
+                  <h3>Karpathy 对“知识界面”的真正启发</h3>
+                  <p>重点不是 CLI 或 markdown，而是用户不再反复面对原始资料，而是面对已经整理过的知识对象。</p>
+                  <div class="page-tags">
+                    <span class="tag">理论源头</span>
+                    <span class="tag">工作流</span>
+                  </div>
+                </article>
+
+                <article class="page-card">
+                  <div class="mini-badge" style="color: var(--gold); border-color: rgba(202, 138, 4, 0.16); background: rgba(202, 138, 4, 0.08);">对比</div>
+                  <h3>为什么“知识首页”不能继续做成洞察报告</h3>
+                  <p>报告回答“你最近怎么样”，知识首页回答“你现在拥有什么知识”。它们不是一回事。</p>
+                  <div class="page-tags">
+                    <span class="tag">产品结构</span>
+                    <span class="tag">避免重叠</span>
+                  </div>
+                </article>
+
+                <article class="page-card">
+                  <div class="mini-badge" style="color: var(--green); border-color: rgba(22, 163, 74, 0.16); background: rgba(22, 163, 74, 0.08);">来源</div>
+                  <h3>关于卡帕西原文与讨论的编译页</h3>
+                  <p>保留原始来源的结构化入口，方便从主题页回到一手材料，而不是重新在内容流里翻找。</p>
+                  <div class="page-tags">
+                    <span class="tag">原始来源</span>
+                    <span class="tag">可追溯</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="block">
+              <h2>精选关系</h2>
+              <div class="relation-list">
+                <article class="relation-item">
+                  <strong>LLM Wiki → 产品首页聚焦</strong>
+                  <p>如果知识被编译成页面，那首页首先展示的就应该是主题和页面，而不是输入流本身。</p>
+                </article>
+                <article class="relation-item">
+                  <strong>知识页 → Q&A</strong>
+                  <p>提问不是独立功能，而是围绕当前主题继续展开的一种阅读动作。</p>
+                </article>
+                <article class="relation-item">
+                  <strong>来源页 → 内容层</strong>
+                  <p>内容还在，但它退回到来源层；知识页才是主阅读层。</p>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <section class="block">
+            <h2>最近接入这个主题的来源</h2>
+            <div class="sources-strip">
+              <div class="source-row">
+                <div class="status" style="color: var(--green);">✓</div>
+                <div>
+                  <strong>Karpathy Gist 完整想法与讨论</strong>
+                  <span>GitHub Gist · 今天 14:20</span>
+                </div>
+                <span class="mini-badge">已编译</span>
+              </div>
+              <div class="source-row">
+                <div class="status" style="color: var(--green);">✓</div>
+                <div>
+                  <strong>X 原推文全文整理</strong>
+                  <span>X / Twitter · 今天 13:47</span>
+                </div>
+                <span class="mini-badge">已编译</span>
+              </div>
+              <div class="source-row">
+                <div class="status" style="color: var(--gold);">⚠</div>
+                <div>
+                  <strong>关于“知识首页”与“洞察页”区别的产品讨论</strong>
+                  <span>内部讨论 · 需重编</span>
+                </div>
+                <span class="mini-badge">待更新</span>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="panel side">
+          <section class="inspector">
+            <h2>当前选中的主题</h2>
+            <div class="selected-theme">
+              <div class="mini-badge">Theme Focus</div>
+              <h3>编译式知识</h3>
+              <p>
+                你最近不是在零散地收内容，而是在持续建立一套“知识如何成为产品主界面”的认知框架。这一栏不是总结，而是主题状态。
+              </p>
+            </div>
+
+            <div class="queue">
+              <div class="queue-item warning">
+                <div class="meta"><span>待处理</span><span>needs_recompile</span></div>
+                <p><strong>知识首页 vs 洞察页</strong></p>
+                <p>部分来源已更新，需要基于最新讨论重新整理页面。</p>
+              </div>
+              <div class="queue-item">
+                <div class="meta"><span>可继续扩展</span><span>4 个关联</span></div>
+                <p><strong>知识图谱降级为探索工具</strong></p>
+                <p>已经形成稳定结论，可以继续补充案例。</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="ask-panel">
+            <h2>围绕当前主题继续提问</h2>
+            <div class="ask-box">
+              <h3>推荐追问</h3>
+              <div class="prompt">如果“知识”成为第一屏，哪些现有元素应该退到第二层？</div>
+              <div class="ask-actions">
+                <div class="tiny primary">继续追问</div>
+                <div class="tiny">查看相关页面</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="ask-panel">
+            <h2>工作台原则</h2>
+            <div class="ask-box">
+              <div class="meta" style="margin-bottom: 8px;">
+                <span>不是报告</span>
+                <span>不是功能广场</span>
+              </div>
+              <div class="prompt">
+                用户打开后先看到主题、页面、来源和关系，先进入知识对象本身；洞察才负责解释，内容才负责回到原始输入。
+              </div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>
