@@ -21,6 +21,8 @@ export interface CapturedContent {
   summary?: string;
   tags?: string;
   digest?: string;
+  wiki_compile_hash?: string;
+  wiki_assessed_hash?: string;
 }
 
 export interface CaptureEvent {

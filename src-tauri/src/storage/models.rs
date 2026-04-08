@@ -51,6 +51,8 @@ pub struct CapturedContent {
     pub summary: Option<String>,
     pub tags: Option<String>,
     pub digest: Option<String>,
+    pub wiki_compile_hash: Option<String>,
+    pub wiki_assessed_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,4 +160,79 @@ pub struct AttentionInsight {
     pub content_count: i32,
     pub model_used: String,
     pub is_current: bool,
+}
+
+// ========== Wiki Knowledge Base ==========
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiPage {
+    pub id: String,
+    pub title: String,
+    pub slug: String,
+    pub page_type: String,
+    pub body_markdown: String,
+    pub summary: Option<String>,
+    pub tags: Option<String>,
+    pub status: String,
+    pub confidence: f64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub last_compiled_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiPageSource {
+    pub id: i64,
+    pub page_id: String,
+    pub content_id: String,
+    pub compile_hash: String,
+    pub source_status: String,
+    pub contributed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiEdge {
+    pub id: i64,
+    pub source_page_id: String,
+    pub target_page_id: String,
+    pub relation: String,
+    pub weight: f64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiCompileLog {
+    pub id: i64,
+    pub content_id: String,
+    pub content_hash: String,
+    pub status: String,
+    pub knowledge_score: Option<f64>,
+    pub pages_touched: Option<String>,
+    pub model_used: Option<String>,
+    pub error_message: Option<String>,
+    pub compiled_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiConversation {
+    pub id: String,
+    pub question: String,
+    pub answer: String,
+    pub pages_used: String,
+    pub saved_as_page: Option<String>,
+    pub model_used: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiLintResult {
+    pub id: i64,
+    pub lint_type: String,
+    pub severity: String,
+    pub title: String,
+    pub description: String,
+    pub page_ids: String,
+    pub status: String,
+    pub created_at: String,
 }

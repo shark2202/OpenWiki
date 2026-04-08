@@ -217,6 +217,8 @@ pub fn save_content_auto(
         summary: None,
         tags: None,
         digest: None,
+        wiki_compile_hash: None,
+        wiki_assessed_hash: None,
     };
 
     repo.save_content(&content).map_err(|e| e.to_string())?;

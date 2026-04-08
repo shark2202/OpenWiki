@@ -499,6 +499,8 @@ mod tests {
                 summary: None,
                 tags: None,
                 digest: None,
+                wiki_compile_hash: None,
+                wiki_assessed_hash: None,
             }
         };
 

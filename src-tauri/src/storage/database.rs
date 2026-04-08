@@ -145,6 +145,38 @@ impl Database {
             log::info!("Migration 007 applied: added digest column");
         }
 
+        // Migration 008: Add wiki tables
+        let has_wiki_pages: bool = conn
+            .prepare(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages'",
+            )?
+            .query_row([], |row| row.get::<_, i32>(0))
+            .map(|count| count > 0)
+            .unwrap_or(false);
+
+        if !has_wiki_pages {
+            let migration_008 = include_str!("migrations/008_add_wiki.sql");
+            conn.execute_batch(migration_008)?;
+            log::info!("Migration 008 applied: added wiki tables");
+        }
+
+        // Migration 009: Add wiki hash columns to captured_content
+        let has_wiki_compile_hash: bool = conn
+            .prepare(
+                "SELECT COUNT(*) FROM pragma_table_info('captured_content') WHERE name='wiki_compile_hash'",
+            )?
+            .query_row([], |row| row.get::<_, i32>(0))
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if !has_wiki_compile_hash {
+            conn.execute_batch(
+                "ALTER TABLE captured_content ADD COLUMN wiki_compile_hash TEXT;
+                 ALTER TABLE captured_content ADD COLUMN wiki_assessed_hash TEXT;",
+            )?;
+            log::info!("Migration 009 applied: added wiki hash columns");
+        }
+
         log::info!("Database migrations completed successfully");
         Ok(())
     }
