@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { List, Share2 } from "lucide-react";
 import { useWikiStore } from "../../stores/wikiStore";
 import { WikiBrowseView } from "./WikiBrowseView";
+import { WikiGraphView } from "./WikiGraphView";
 
 type SubView = "browse" | "graph";
 
@@ -68,13 +69,7 @@ export function WikiView() {
 
       {/* Sub-view content */}
       {subView === "browse" && <WikiBrowseView />}
-      {subView === "graph" && (
-        <div className="flex items-center justify-center py-20">
-          <p style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-            图谱视图将在 Phase 5 实现
-          </p>
-        </div>
-      )}
+      {subView === "graph" && <WikiGraphView />}
     </div>
   );
 }
