@@ -198,7 +198,7 @@ export function SettingsView() {
           })}
         </div>
         <div className="py-3 px-3">
-          <p className="text-[10px] text-gray-400 dark:text-gray-600">小云 v0.1.0</p>
+          <p className="text-[10px] text-gray-400 dark:text-gray-600">OpenWiki v0.1.0</p>
         </div>
       </div>
 

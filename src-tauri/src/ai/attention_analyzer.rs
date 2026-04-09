@@ -274,7 +274,7 @@ pub fn build_prompt_v2(
     items: &[ContentForAnalysis],
     stats: &serde_json::Value,
 ) -> (String, String) {
-    let system_prompt = r#"你是小云雷达，专门分析用户信息收藏行为的 AI 分析师。
+    let system_prompt = r#"你是 OpenWiki 洞察，专门分析用户信息收藏行为的 AI 分析师。
 
 你会收到两部分数据：
 1. stats：用户这段时间的统计摘要（来源分布、时段分布、标注率等）

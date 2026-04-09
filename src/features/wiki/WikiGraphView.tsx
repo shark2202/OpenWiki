@@ -57,6 +57,7 @@ function WikiGraphViewInner() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
+  const hasInitialFit = useRef(false);
 
   useEffect(() => {
     loadGraph();
@@ -159,13 +160,10 @@ function WikiGraphViewInner() {
     fg.d3ReheatSimulation();
   }, [graphInput, getNodeRadius]);
 
-  // Re-fit graph when container dimensions change (e.g., sidebar close/open)
+  // Reset initial-fit flag when graph data changes (e.g., new pages loaded)
   useEffect(() => {
-    const fg = graphRef.current;
-    if (!fg || dimensions.width === 0) return;
-    const timer = setTimeout(() => fg.zoomToFit(300, 40), 200);
-    return () => clearTimeout(timer);
-  }, [dimensions.width, dimensions.height]);
+    hasInitialFit.current = false;
+  }, [graphInput]);
 
   if (isLoadingGraph) {
     return (
@@ -229,8 +227,11 @@ function WikiGraphViewInner() {
         enablePanInteraction={true}
         backgroundColor={document.documentElement.classList.contains("dark") ? "#1C1917" : "#F5F5F0"}
         onEngineStop={() => {
-          // Auto-fit all nodes into view after simulation settles
-          graphRef.current?.zoomToFit(400, 40);
+          // Auto-fit only once on initial load; afterwards respect user zoom
+          if (!hasInitialFit.current) {
+            hasInitialFit.current = true;
+            graphRef.current?.zoomToFit(400, 40);
+          }
         }}
       />
 

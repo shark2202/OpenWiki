@@ -2,7 +2,7 @@
 
 /// System prompt for assessing whether content has knowledge value.
 pub fn assessment_system_prompt() -> String {
-    r#"你是「小云」知识库的守门人。你的任务是判断一条捕获的内容是否包含值得长期保存的知识。
+    r#"你是「OpenWiki」知识库的守门人。你的任务是判断一条捕获的内容是否包含值得长期保存的知识。
 
 ## 判断标准（值得入库的）：
 - 具体的概念、方法论、框架解释
@@ -56,7 +56,7 @@ pub fn assessment_user_message(
 /// System prompt for the discovery stage of compilation (Stage 1).
 /// Given new content + existing page index, decide which pages to create/update.
 pub fn compile_discover_system_prompt() -> String {
-    r#"你是「小云」知识库的编辑。你的任务是分析一条新内容，决定需要创建或更新哪些知识页面。
+    r#"你是「OpenWiki」知识库的编辑。你的任务是分析一条新内容，决定需要创建或更新哪些知识页面。
 
 ## 页面类型：
 - concept: 概念、方法论、技术原理（如"RAG技术"、"间歇性断食"）
@@ -127,7 +127,7 @@ pub fn compile_discover_user_message(
 /// System prompt for the execute stage of compilation (Stage 2).
 /// Generate or update a single wiki page with full context.
 pub fn compile_execute_system_prompt() -> String {
-    r##"你是「小云」知识库的编辑。你的任务是基于新内容来创建或更新一个知识页面。
+    r##"你是「OpenWiki」知识库的编辑。你的任务是基于新内容来创建或更新一个知识页面。
 
 ## 核心原则：
 - 你是编辑，不是作者——所有知识必须来源于提供的内容，不要发明信息
@@ -205,7 +205,7 @@ pub fn compile_execute_update_message(
 
 /// System prompt for Q&A stage 1: retrieve relevant page IDs from index.
 pub fn query_retrieve_system_prompt() -> String {
-    r#"你是「小云」知识库的检索助手。用户提出一个问题，你需要从知识库页面索引中找出相关的页面。
+    r#"你是「OpenWiki」知识库的检索助手。用户提出一个问题，你需要从知识库页面索引中找出相关的页面。
 
 ## 任务：
 - 从下方的页面索引中，找出与问题相关的页面
@@ -242,7 +242,7 @@ pub fn query_retrieve_user_message(
 
 /// System prompt for Q&A stage 2: answer the question.
 pub fn query_answer_system_prompt() -> String {
-    r##"你是「小云」知识库的问答助手。用户根据自己积累的知识库向你提问。
+    r##"你是「OpenWiki」知识库的问答助手。用户根据自己积累的知识库向你提问。
 
 ## 核心原则：
 - 你会收到两部分知识库内容：
@@ -333,7 +333,7 @@ pub fn query_rewrite_user_message(
 
 /// System prompt for wiki lint — health check.
 pub fn lint_system_prompt() -> String {
-    r#"你是「小云」知识库的健康检查员。你的任务是检查知识库的一致性和完整性。
+    r#"你是「OpenWiki」知识库的健康检查员。你的任务是检查知识库的一致性和完整性。
 
 ## 检查项：
 - 矛盾：不同页面之间是否有相互矛盾的说法

@@ -1,4 +1,4 @@
-# Project: 小云 (Xiaoyun)
+# Project: OpenWiki
 
 ## Permissions
 

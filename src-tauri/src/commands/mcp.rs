@@ -245,7 +245,7 @@ pub async fn connect_mcp(target: McpTarget) -> Result<String, String> {
     }
 
     // 3. Get absolute db path
-    let db_path = xiaoyun_db_path().ok_or("无法确定小云数据库路径")?;
+    let db_path = xiaoyun_db_path().ok_or("无法确定 OpenWiki 数据库路径")?;
 
     // 4. Read or create config
     let mut config = if config_path.exists() {

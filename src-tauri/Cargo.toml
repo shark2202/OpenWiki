@@ -1,8 +1,8 @@
 [package]
-name = "xiaoyun"
+name = "openwiki"
 version = "0.1.0"
-description = "小云 - Mac 桌面 AI 信息助手"
-authors = ["xiaoyun"]
+description = "OpenWiki - Mac 桌面 AI 知识管理工具"
+authors = ["openwiki"]
 license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"

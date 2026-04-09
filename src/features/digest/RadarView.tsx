@@ -695,7 +695,7 @@ function ReportFooter({ footer }: { footer: Footer }) {
   return (
     <div className="text-center py-4 mt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
       <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "var(--color-text-muted)" }}>
-        <strong>小云洞察</strong> · {footer.date_range} · {footer.total} 条内容 · {footer.active_days}/{footer.total_days} 天活跃
+        <strong>OpenWiki 洞察</strong> · {footer.date_range} · {footer.total} 条内容 · {footer.active_days}/{footer.total_days} 天活跃
       </div>
     </div>
   );
@@ -940,7 +940,7 @@ function buildExportHtml(r: import("../../services/radarService").RadarReport): 
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>小云洞察 · ${date}</title>
+<title>OpenWiki 洞察 · ${date}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap" rel="stylesheet">
@@ -1046,7 +1046,7 @@ function buildExportHtml(r: import("../../services/radarService").RadarReport): 
     <div class="verdict"><p>${verdictText}</p></div>
   </div>
 
-  <div class="footer"><strong>小云洞察</strong> · ${esc(r.footer.date_range)} · ${r.footer.total} 条内容 · ${r.footer.active_days}/${r.footer.total_days} 天活跃</div>
+  <div class="footer"><strong>OpenWiki 洞察</strong> · ${esc(r.footer.date_range)} · ${r.footer.total} 条内容 · ${r.footer.active_days}/${r.footer.total_days} 天活跃</div>
 </body>
 </html>`;
 }

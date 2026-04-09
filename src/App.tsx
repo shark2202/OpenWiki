@@ -157,7 +157,7 @@ function App() {
         <div className="relative flex items-center pl-[78px] pr-4 h-[40px]" data-tauri-drag-region>
           {/* Brand — left side, after traffic lights */}
           <span className="text-base font-bold text-orange-500 flex-shrink-0" data-tauri-drag-region>
-            小云
+            OpenWiki
           </span>
 
           {/* Tab navigation — absolute center in the full header width */}

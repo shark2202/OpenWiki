@@ -1,4 +1,4 @@
-# Design System — 小云 (Xiaoyun)
+# Design System — OpenWiki
 
 ## Product Context
 - **What this is:** Mac 桌面端内容捕获 + AI 知识管理工具，自动收集剪贴板/截图/链接，用 AI 生成周报回顾

@@ -124,7 +124,7 @@ export function DigestView() {
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <span className="text-4xl mb-3">📭</span>
           <p className="text-base font-medium text-gray-700 dark:text-gray-200 mb-1">最近一周没有需要消化的内容</p>
-          <p className="text-xs text-gray-400 dark:text-slate-500">复制一些内容，小云会帮你记住</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">复制一些内容，OpenWiki 会帮你记住</p>
         </div>
       )}
 

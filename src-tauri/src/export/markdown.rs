@@ -251,7 +251,7 @@ pub fn export_all_single_file(
     export_dir: &Path,
 ) -> Result<(PathBuf, usize), Box<dyn std::error::Error>> {
     let dates = repo.get_dates_with_content()?;
-    export_dates_to_single_file(&dates, repo, export_dir, "小云-全部内容")
+    export_dates_to_single_file(&dates, repo, export_dir, "OpenWiki-全部内容")
 }
 
 /// Export a date range into a single markdown file, grouped by date.
@@ -267,7 +267,7 @@ pub fn export_range_single_file(
         .into_iter()
         .filter(|(d, _)| d.as_str() >= start && d.as_str() <= end)
         .collect();
-    let filename = format!("小云-{}-至-{}", start, end);
+    let filename = format!("OpenWiki-{}-至-{}", start, end);
     export_dates_to_single_file(&filtered, repo, export_dir, &filename)
 }
 

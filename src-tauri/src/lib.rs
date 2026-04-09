@@ -333,7 +333,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
 
-    let show = MenuItem::with_id(app, "show", "打开小云", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "打开 OpenWiki", true, None::<&str>)?;
     let report = MenuItem::with_id(app, "report", "生成周报", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
@@ -341,7 +341,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("小云 — 智能信息助手")
+        .tooltip("OpenWiki — 智能知识管理")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
