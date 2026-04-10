@@ -1445,6 +1445,7 @@ fn strip_html_to_text(html: &str) -> String {
     let content_html = &html[start_idx..];
     let mut result = String::new();
     let mut in_tag = false;
+    let mut tag_buf = String::new();
     let mut in_script = false;
     let mut in_style = false;
     let mut in_nav = false;
@@ -1452,53 +1453,51 @@ fn strip_html_to_text(html: &str) -> String {
     let mut in_footer = false;
     let mut in_aside = false;
 
-    let bytes = content_html.as_bytes();
-    let len = bytes.len();
-    let mut i = 0;
+    for ch in content_html.chars() {
+        if result.len() >= MAX_CONTENT_LENGTH { break; }
 
-    while i < len && result.len() < MAX_CONTENT_LENGTH {
-        let b = bytes[i];
-        if b == b'<' {
+        if ch == '<' {
             in_tag = true;
-            let upcoming = &content_html[i..std::cmp::min(i + 20, len)].to_lowercase();
-            // Track skip zones: nav, header, footer, aside
-            if upcoming.starts_with("<nav") { in_nav = true; }
-            else if upcoming.starts_with("</nav") { in_nav = false; }
-            else if upcoming.starts_with("<header") { in_header = true; }
-            else if upcoming.starts_with("</header") { in_header = false; }
-            else if upcoming.starts_with("<footer") { in_footer = true; }
-            else if upcoming.starts_with("</footer") { in_footer = false; }
-            else if upcoming.starts_with("<aside") { in_aside = true; }
-            else if upcoming.starts_with("</aside") { in_aside = false; }
-            // Track script/style
-            else if upcoming.starts_with("<script") { in_script = true; }
-            else if upcoming.starts_with("</script") { in_script = false; }
-            else if upcoming.starts_with("<style") { in_style = true; }
-            else if upcoming.starts_with("</style") { in_style = false; }
-            // Block-level tags → newline
-            if upcoming.starts_with("<br")
-                || upcoming.starts_with("</p")
-                || upcoming.starts_with("</div")
-                || upcoming.starts_with("</h")
-                || upcoming.starts_with("</li")
-                || upcoming.starts_with("</tr")
-            {
-                if !result.ends_with('\n') {
-                    result.push('\n');
+            tag_buf.clear();
+            tag_buf.push(ch);
+            continue;
+        }
+        if in_tag {
+            tag_buf.push(ch);
+            if ch == '>' {
+                in_tag = false;
+                let tag_lower = tag_buf.to_lowercase();
+                // Track skip zones
+                if tag_lower.starts_with("<nav") { in_nav = true; }
+                else if tag_lower.starts_with("</nav") { in_nav = false; }
+                else if tag_lower.starts_with("<header") { in_header = true; }
+                else if tag_lower.starts_with("</header") { in_header = false; }
+                else if tag_lower.starts_with("<footer") { in_footer = true; }
+                else if tag_lower.starts_with("</footer") { in_footer = false; }
+                else if tag_lower.starts_with("<aside") { in_aside = true; }
+                else if tag_lower.starts_with("</aside") { in_aside = false; }
+                else if tag_lower.starts_with("<script") { in_script = true; }
+                else if tag_lower.starts_with("</script") { in_script = false; }
+                else if tag_lower.starts_with("<style") { in_style = true; }
+                else if tag_lower.starts_with("</style") { in_style = false; }
+                // Block-level tags → newline
+                if tag_lower.starts_with("<br")
+                    || tag_lower.starts_with("</p")
+                    || tag_lower.starts_with("</div")
+                    || tag_lower.starts_with("</h")
+                    || tag_lower.starts_with("</li")
+                    || tag_lower.starts_with("</tr")
+                {
+                    if !result.ends_with('\n') {
+                        result.push('\n');
+                    }
                 }
             }
-            i += 1;
             continue;
         }
-        if b == b'>' {
-            in_tag = false;
-            i += 1;
-            continue;
+        if !in_script && !in_style && !in_nav && !in_header && !in_footer && !in_aside {
+            result.push(ch);
         }
-        if !in_tag && !in_script && !in_style && !in_nav && !in_header && !in_footer && !in_aside {
-            result.push(b as char);
-        }
-        i += 1;
     }
 
     let decoded = html_decode(&result);
