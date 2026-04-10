@@ -1,29 +1,33 @@
 <svg width="1200" height="260" viewBox="0 0 1200 260" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="260" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#FFF7ED"/>
-      <stop offset="100%" stop-color="#FFEDD5"/>
+    <!-- Dark left → Warm right gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1C1917"/>
+      <stop offset="38%" stop-color="#292524"/>
+      <stop offset="55%" stop-color="#78716C"/>
+      <stop offset="72%" stop-color="#FFEDD5"/>
+      <stop offset="100%" stop-color="#FFF7ED"/>
     </linearGradient>
   </defs>
 
   <!-- Background -->
   <rect width="1200" height="260" rx="16" fill="url(#bg)"/>
 
-  <!-- Left graph cluster -->
-  <line x1="65" y1="75" x2="120" y2="110" stroke="#F97316" stroke-opacity="0.15" stroke-width="1.5"/>
-  <line x1="120" y1="110" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.12" stroke-width="1.5"/>
-  <line x1="65" y1="75" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.10" stroke-width="1.5"/>
-  <line x1="120" y1="110" x2="180" y2="85" stroke="#A8A29E" stroke-opacity="0.15" stroke-width="1"/>
-  <line x1="95" y1="165" x2="160" y2="200" stroke="#A8A29E" stroke-opacity="0.12" stroke-width="1"/>
-  <line x1="180" y1="85" x2="230" y2="130" stroke="#A8A29E" stroke-opacity="0.10" stroke-width="1"/>
-  <circle cx="65" cy="75" r="5" fill="#F97316" opacity="0.25"/>
-  <circle cx="120" cy="110" r="6" fill="#F97316" opacity="0.30"/>
-  <circle cx="95" cy="165" r="5" fill="#F97316" opacity="0.20"/>
-  <circle cx="180" cy="85" r="3.5" fill="#A8A29E" opacity="0.25"/>
-  <circle cx="160" cy="200" r="3" fill="#A8A29E" opacity="0.20"/>
-  <circle cx="230" cy="130" r="3" fill="#A8A29E" opacity="0.15"/>
+  <!-- Left graph cluster (light lines on dark background) -->
+  <line x1="65" y1="75" x2="120" y2="110" stroke="#F97316" stroke-opacity="0.25" stroke-width="1.5"/>
+  <line x1="120" y1="110" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.20" stroke-width="1.5"/>
+  <line x1="65" y1="75" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.18" stroke-width="1.5"/>
+  <line x1="120" y1="110" x2="180" y2="85" stroke="#A8A29E" stroke-opacity="0.20" stroke-width="1"/>
+  <line x1="95" y1="165" x2="160" y2="200" stroke="#A8A29E" stroke-opacity="0.15" stroke-width="1"/>
+  <line x1="180" y1="85" x2="230" y2="130" stroke="#A8A29E" stroke-opacity="0.12" stroke-width="1"/>
+  <circle cx="65" cy="75" r="5" fill="#F97316" opacity="0.40"/>
+  <circle cx="120" cy="110" r="6" fill="#F97316" opacity="0.45"/>
+  <circle cx="95" cy="165" r="5" fill="#F97316" opacity="0.35"/>
+  <circle cx="180" cy="85" r="3.5" fill="#A8A29E" opacity="0.30"/>
+  <circle cx="160" cy="200" r="3" fill="#A8A29E" opacity="0.25"/>
+  <circle cx="230" cy="130" r="3" fill="#A8A29E" opacity="0.20"/>
 
-  <!-- Right graph cluster -->
+  <!-- Right graph cluster (darker lines on light background) -->
   <line x1="1020" y1="70" x2="1080" y2="105" stroke="#F97316" stroke-opacity="0.15" stroke-width="1.5"/>
   <line x1="1080" y1="105" x2="1050" y2="165" stroke="#F97316" stroke-opacity="0.12" stroke-width="1.5"/>
   <line x1="1020" y1="70" x2="1050" y2="165" stroke="#F97316" stroke-opacity="0.10" stroke-width="1.5"/>
@@ -37,13 +41,13 @@
   <circle cx="1120" cy="195" r="3" fill="#A8A29E" opacity="0.20"/>
   <circle cx="1140" cy="140" r="3" fill="#A8A29E" opacity="0.15"/>
 
-  <!-- OpenWiki title — 72px, all English -->
-  <text x="427" y="120" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="72" fill="#1C1917">Open</text>
+  <!-- OpenWiki title — sits in the transition zone -->
+  <text x="427" y="120" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="72" fill="#FFF7ED">Open</text>
   <text x="610" y="120" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="72" fill="#F97316">Wiki</text>
 
-  <!-- Subtitle — English only -->
-  <text x="600" y="165" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="15" fill="#A8A29E" letter-spacing="3">CAPTURE · ORGANIZE · INSIGHT</text>
+  <!-- Subtitle -->
+  <text x="600" y="165" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="15" fill="#D6D3D1" letter-spacing="3">CAPTURE · ORGANIZE · INSIGHT</text>
 
   <!-- Tech stack -->
-  <text x="600" y="210" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="12" fill="#D6D3D1" letter-spacing="2">TAURI 2 · REACT · RUST · SQLITE · PRIVACY FIRST</text>
+  <text x="600" y="210" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="12" fill="#A8A29E" letter-spacing="2">TAURI 2 · REACT · RUST · SQLITE · PRIVACY FIRST</text>
 </svg>
