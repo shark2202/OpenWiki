@@ -9,7 +9,7 @@
   <!-- Background -->
   <rect width="1200" height="260" rx="16" fill="url(#bg)"/>
 
-  <!-- Left graph cluster — knowledge graph nodes + edges (matches logo style) -->
+  <!-- Left graph cluster -->
   <line x1="65" y1="75" x2="120" y2="110" stroke="#F97316" stroke-opacity="0.15" stroke-width="1.5"/>
   <line x1="120" y1="110" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.12" stroke-width="1.5"/>
   <line x1="65" y1="75" x2="95" y2="165" stroke="#F97316" stroke-opacity="0.10" stroke-width="1.5"/>
@@ -37,25 +37,19 @@
   <circle cx="1120" cy="195" r="3" fill="#A8A29E" opacity="0.20"/>
   <circle cx="1140" cy="140" r="3" fill="#A8A29E" opacity="0.15"/>
 
-  <!-- === Centered title group === -->
-  <!-- Logo + OpenWiki as one centered unit -->
-  <!-- Total width: circle(60) + gap(10) + "OpenWiki"(~240) = ~310 -->
-  <!-- Center at x=600, so start at x=600-155=445 -->
-
-  <!-- Logo circle -->
-  <circle cx="475" cy="80" r="30" fill="#F97316"/>
-  <text x="475" y="90" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="24" fill="white">W</text>
-
-  <!-- "Open" + "Wiki" -->
-  <text x="515" y="93" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="42" fill="#1C1917">Open</text>
-  <text x="625" y="93" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="42" fill="#F97316">Wiki</text>
+  <!-- === Centered content === -->
+  <!-- "Open" (dark) + "Wiki" (orange) — large, centered, no logo circle -->
+  <!-- Arial 56px: "Open" ~123px, "Wiki" ~107px, total ~230px, gap 6px = ~236px -->
+  <!-- Center: 600 - 118 = 482 start -->
+  <text x="482" y="100" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="56" fill="#1C1917">Open</text>
+  <text x="624" y="100" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="56" fill="#F97316">Wiki</text>
 
   <!-- Tagline -->
-  <text x="600" y="140" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="500" font-size="16" fill="#78716C">自动捕获 · 智能整理 · 深度洞察</text>
+  <text x="600" y="145" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="500" font-size="16" fill="#78716C">自动捕获 · 智能整理 · 深度洞察</text>
 
   <!-- Divider -->
-  <line x1="500" y1="162" x2="700" y2="162" stroke="#F97316" stroke-opacity="0.2" stroke-width="1"/>
+  <line x1="500" y1="167" x2="700" y2="167" stroke="#F97316" stroke-opacity="0.2" stroke-width="1"/>
 
   <!-- Tech stack -->
-  <text x="600" y="190" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="13" fill="#A8A29E" letter-spacing="2">TAURI 2 · REACT · RUST · SQLITE · PRIVACY FIRST</text>
+  <text x="600" y="195" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="13" fill="#A8A29E" letter-spacing="2">TAURI 2 · REACT · RUST · SQLITE · PRIVACY FIRST</text>
 </svg>
