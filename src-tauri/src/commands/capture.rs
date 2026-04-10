@@ -1022,7 +1022,7 @@ pub fn spawn_clean_content_task(
                 .await
                 {
                     if let Ok(cleaned) = result {
-                        save_clean_content(&repo, &app, &content_id, &cleaned);
+                        save_clean_content(db.clone(), &repo, &app, &content_id, &cleaned);
                     }
                 }
                 return;
@@ -1038,7 +1038,7 @@ pub fn spawn_clean_content_task(
                 .await
                 {
                     if let Ok(cleaned) = result {
-                        save_clean_content(&repo, &app, &content_id, &cleaned);
+                        save_clean_content(db.clone(), &repo, &app, &content_id, &cleaned);
                     }
                 }
                 return;
@@ -1064,7 +1064,7 @@ pub fn spawn_clean_content_task(
         .await
         {
             Ok(cleaned) => {
-                save_clean_content(&repo, &app, &content_id, &cleaned);
+                save_clean_content(db.clone(), &repo, &app, &content_id, &cleaned);
             }
             Err(e) => {
                 log::warn!("Clean content generation failed for {}: {}", content_id, e);
@@ -1091,21 +1091,47 @@ fn build_clean_prompt(raw_text: &str) -> String {
 }
 
 fn save_clean_content(
+    db: std::sync::Arc<crate::storage::database::Database>,
     repo: &crate::storage::repository::Repository,
     app: &tauri::AppHandle,
     content_id: &str,
     cleaned: &str,
 ) {
     use tauri::Emitter;
+    // Strip markdown code block wrappers that AI sometimes adds
     let trimmed = cleaned.trim();
-    if trimmed.len() < 50 {
+    let stripped = if trimmed.starts_with("```") {
+        let without_prefix = if let Some(rest) = trimmed.strip_prefix("```markdown") {
+            rest
+        } else if let Some(rest) = trimmed.strip_prefix("```md") {
+            rest
+        } else {
+            &trimmed[3..]
+        };
+        without_prefix
+            .strip_suffix("```")
+            .unwrap_or(without_prefix)
+            .trim()
+    } else {
+        trimmed
+    };
+    if stripped.len() < 50 {
         log::warn!("Clean content too short for {}, skipping", content_id);
         return;
     }
-    match repo.update_clean_content(content_id, trimmed) {
+    match repo.update_clean_content(content_id, stripped) {
         Ok(()) => {
             let _ = app.emit("content:clean-ready", content_id);
-            log::info!("Clean content saved for {} ({} chars)", content_id, trimmed.len());
+            log::info!("Clean content saved for {} ({} chars)", content_id, stripped.len());
+            // Trigger wiki recompile with the now-clean content
+            let cid = content_id.to_string();
+            let db_ref = db;
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                if let Err(e) = crate::ai::wiki_engine::auto_compile(db_ref, &cid).await {
+                    log::warn!("Wiki recompile after clean failed for {}: {}", cid, e);
+                }
+            });
         }
         Err(e) => {
             log::warn!("Failed to save clean content for {}: {}", content_id, e);
