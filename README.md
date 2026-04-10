@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  隐私优先 — 所有数据存储在本地 SQLite，不上传任何云端。
+  隐私优先 — 所有数据存储在本地 SQLite 数据库。
 </p>
 
 ## 📸 截图
@@ -66,21 +66,10 @@
 - 深色 / 浅色 / 跟随系统主题
 - MCP 协议集成，可连接 Claude Desktop
 
-## 技术栈
-
-| 层级 | 技术 |
-|---|---|
-| 框架 | Tauri 2 |
-| 前端 | React 19 + TypeScript |
-| 样式 | Tailwind CSS 4 |
-| 状态 | Zustand |
-| 动效 | Framer Motion |
-| 后端 | Rust |
-| 存储 | SQLite (本地) |
-
 ## 下载安装
 
-🍏 macOS (Apple Silicon): 下载下方的 `OpenWiki_0.1.0_aarch64.dmg`
+- macOS (Apple Silicon): 下载下方的 `OpenWiki_X.Y.Z_aarch64.dmg`
+- macOS (Intel): 下载下方的 `OpenWiki_X.Y.Z_x64.dmg`
 
 👉 [前往 Release 页面下载](https://github.com/kdsz001/OpenWiki/releases)
 
@@ -89,9 +78,9 @@
 由于应用未经 Apple 签名，macOS 会拦截。请按以下步骤操作：
 
 1. 打开 `.dmg`，将 OpenWiki 拖入「应用程序」文件夹
-2. 第一次打开时会弹窗提示"无法打开"——**这是正常的**，点击「好」关掉弹窗
-3. 打开 **系统设置 → 隐私与安全性**，向下滚动找到"已阻止使用 OpenWiki"，点击「仍要打开」
-4. 再次确认后即可正常使用，以后不会再弹窗
+2. **打开终端，执行 `xattr -cr /Applications/OpenWiki.app` ，允许应用运行**
+3. 运行应用，在弹出的授权窗口点击“允许”
+4. 在应用的“设置”->“AI”中配置 AI 提供商信息
 
 ### 已知的外部依赖
 
@@ -100,7 +89,6 @@
 | 功能 | 需要安装 | 安装方式 |
 |---|---|---|
 | YouTube 字幕抓取 | yt-dlp + Node.js | `pip3 install yt-dlp` + [nodejs.org](https://nodejs.org) |
-| 图片文字识别 (OCR) | Xcode Command Line Tools | `xcode-select --install` |
 
 ## 开发指南
 
@@ -108,6 +96,7 @@
 - Node.js 18+
 - Rust (最新 stable)
 - macOS
+- Xcode Command Line Tools （终端运行 `xcode-select --install`）
 
 ### 开始
 
@@ -126,23 +115,6 @@ npm run tauri dev
 npm run tauri build
 ```
 
-### AI 配置
-
-复制环境变量模板并填入你的 API Key：
-
-```bash
-cp .env.example .env
-```
-
-也可以在应用内的 设置 → AI 提供商 中直接配置（支持 OAuth 登录）。
-
-## Roadmap
-
-- [ ] 多语言支持 (i18n)
-- [ ] 云端同步
-- [ ] 浏览器插件捕获
-- [ ] 团队协作版本
-
 ## 参与贡献
 
 欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发流程和规范。
@@ -154,3 +126,7 @@ cp .env.example .env
 ## License
 
 [MIT](LICENSE)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=kdsz001/OpenWiki&type=date&legend=top-left)](https://www.star-history.com/#kdsz001/OpenWiki&type=date&legend=top-left)
