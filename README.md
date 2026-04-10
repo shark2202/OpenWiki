@@ -78,7 +78,31 @@
 | 后端 | Rust |
 | 存储 | SQLite (本地) |
 
-## 安装与开发
+## 下载安装
+
+🍏 macOS (Apple Silicon): 下载下方的 `OpenWiki_0.1.0_aarch64.dmg`
+
+👉 [前往 Release 页面下载](https://github.com/kdsz001/xiaoyun/releases)
+
+### ⚠️ 首次打开指南（重要）
+
+由于应用未经 Apple 签名，macOS 会拦截。请按以下步骤操作：
+
+1. 打开 `.dmg`，将 OpenWiki 拖入「应用程序」文件夹
+2. 第一次打开时会弹窗提示"无法打开"——**这是正常的**，点击「好」关掉弹窗
+3. 打开 **系统设置 → 隐私与安全性**，向下滚动找到"已阻止使用 OpenWiki"，点击「仍要打开」
+4. 再次确认后即可正常使用，以后不会再弹窗
+
+### 已知的外部依赖
+
+以下功能需要额外安装工具，不影响其他功能使用：
+
+| 功能 | 需要安装 | 安装方式 |
+|---|---|---|
+| YouTube 字幕抓取 | yt-dlp + Node.js | `pip3 install yt-dlp` + [nodejs.org](https://nodejs.org) |
+| 图片文字识别 (OCR) | Xcode Command Line Tools | `xcode-select --install` |
+
+## 开发指南
 
 ### 前置要求
 - Node.js 18+
