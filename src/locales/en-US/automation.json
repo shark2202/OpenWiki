@@ -1,0 +1,37 @@
+{
+  "modal": {
+    "title": "One-time authorization",
+    "intro": "OpenWiki wants to remember which app you copied something from, so your clipboard history can show the source app.",
+    "examples": {
+      "wechat": "Copy from WeChat → shows WeChat icon",
+      "chrome": "Copy from Chrome → shows Chrome icon",
+      "notes": "Copy from Notes → shows Notes icon"
+    },
+    "note": "After you click the button below, macOS will show a dialog. Please choose \"Allow\". OpenWiki only reads the name of the frontmost app — nothing else.",
+    "grant": "Start authorization",
+    "later": "Maybe later"
+  },
+  "toast": {
+    "granted": "Authorized! Clipboard history will now show the source app.",
+    "dismissed": "Okay — you can turn this on from Settings anytime."
+  },
+  "banner": {
+    "title": "Automation permission denied",
+    "subtitle": "Clipboard history can't show where content came from",
+    "fix": "Fix it →",
+    "close": "Close"
+  },
+  "settings": {
+    "sectionTitle": "Diagnostics",
+    "sectionDescription": "Check and fix permission issues",
+    "automationLabel": "Automation permission (Apple Events)",
+    "automationDesc": "Identify which app you copied content from",
+    "statusGranted": "✓ Granted",
+    "statusDenied": "✕ Denied",
+    "statusDismissed": "— Not set",
+    "statusUnknown": "— Not set",
+    "requestButton": "Start authorization",
+    "reauthorizeButton": "Re-authorize",
+    "openSettings": "Open System Settings"
+  }
+}

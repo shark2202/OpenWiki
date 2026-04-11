@@ -1,0 +1,37 @@
+{
+  "modal": {
+    "title": "一次性授权",
+    "intro": "OpenWiki 想记录你从哪个应用复制的内容，让你的剪贴板历史能看到来源 App。",
+    "examples": {
+      "wechat": "从微信复制 → 显示微信图标",
+      "chrome": "从 Chrome 复制 → 显示 Chrome 图标",
+      "notes": "从备忘录复制 → 显示备忘录图标"
+    },
+    "note": "点下面的按钮后，系统会弹一个对话框，请选「允许」。OpenWiki 只读取当前前台应用的名字，不访问其他数据。",
+    "grant": "开始授权",
+    "later": "稍后再说"
+  },
+  "toast": {
+    "granted": "授权成功，以后剪贴板会显示内容来源应用",
+    "dismissed": "好的，你随时可以在设置里开启"
+  },
+  "banner": {
+    "title": "自动化权限被拒绝",
+    "subtitle": "剪贴板历史无法显示内容来源应用",
+    "fix": "前往修复 →",
+    "close": "关闭"
+  },
+  "settings": {
+    "sectionTitle": "诊断",
+    "sectionDescription": "检查和修复权限问题",
+    "automationLabel": "自动化权限（Apple Events）",
+    "automationDesc": "识别你从哪个应用复制内容",
+    "statusGranted": "✓ 已授权",
+    "statusDenied": "✕ 被拒绝",
+    "statusDismissed": "— 未设置",
+    "statusUnknown": "— 未设置",
+    "requestButton": "开始授权",
+    "reauthorizeButton": "重新授权",
+    "openSettings": "打开系统设置"
+  }
+}

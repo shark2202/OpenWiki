@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        macOS Automation (Apple Events) usage description.
+
+        When OpenWiki runs `osascript ... tell application "System Events"`
+        for the first time, macOS shows a system-level permission dialog
+        and displays this string as the human-readable reason.
+
+        Without this key, macOS shows a generic (and scary) default.
+    -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>OpenWiki 需要这个权限来识别你是从哪个应用复制的内容（比如微信、Chrome、备忘录等），让剪贴板历史能显示来源。不会访问其他数据。</string>
+</dict>
+</plist>

@@ -2,6 +2,23 @@
 
 本文件记录 OpenWiki 的版本变化。
 
+## [0.1.4] - 2026-04-11
+
+### 新增
+
+- **自动化权限预告弹窗** — 首次启动时弹出一个友好的中文对话框，解释为什么需要「自动化」权限（识别剪贴板来源 App），让用户有心理准备再触发系统的授权对话框。告别"想要控制 System Events"的生硬提示
+- **Info.plist 中文描述** — 即使系统弹窗意外先触发，它显示的解释也是我们写的中文文案，而非 macOS 默认的警告语
+- **设置页「诊断」分类** — 显示当前自动化权限状态（已授权 / 被拒绝 / 未设置），提供「开始授权」「重新授权」「打开系统设置」按钮
+- **权限拒绝红色横幅** — 如果用户点了系统弹窗的「不允许」，主窗口顶部自动出现红色横幅，一键跳转到系统设置的自动化面板修复
+- **授权成功绿色 Toast** — 右下角短暂显示"授权成功，以后剪贴板会显示内容来源应用"
+
+### 技术细节
+
+- 新增 `src-tauri/src/automation/mod.rs`：权限状态机 (unknown/granted/denied/dismissed)、probe_status 探针、4 个 Tauri 命令
+- 新增 `src-tauri/Info.plist` 通过 `bundle.macOS.infoPlist` 配置自动合并到 app bundle
+- 前端新增 `PreAuthModal`、`AutomationNotices`（复用横幅架构）、`automationService.ts`
+- 状态持久化到现有 `app_settings` 表的两个 key：`automation.initial_prompt_shown` / `automation.last_status`
+
 ## [0.1.3] - 2026-04-11
 
 ### 新增

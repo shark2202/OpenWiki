@@ -1,4 +1,5 @@
 mod ai;
+mod automation;
 mod capture;
 mod commands;
 mod export;
@@ -138,6 +139,19 @@ pub fn run() {
                 );
             }
 
+            // --- Automation (Apple Events) permission guard ---
+            // On first launch emits `automation-needed` so the frontend can show
+            // the pre-auth modal. On subsequent launches probes the current
+            // status and emits `automation-denied` if revoked, so the banner
+            // can surface a fix-it button.
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                crate::automation::spawn_startup_check(
+                    app.handle().clone(),
+                    state.db.clone(),
+                );
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -214,6 +228,10 @@ pub fn run() {
             update::dismiss_update_version,
             update::set_update_check_enabled,
             update::get_update_settings,
+            automation::get_automation_status,
+            automation::request_automation_permission,
+            automation::dismiss_automation_prompt,
+            automation::open_automation_settings,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

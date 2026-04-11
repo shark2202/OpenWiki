@@ -8,6 +8,8 @@ import { DataHubView } from "./features/data-hub/DataHubView";
 import { RadarView } from "./features/digest/RadarView";
 import { WikiView } from "./features/wiki/WikiView";
 import { UpdateBanner } from "./features/update/UpdateBanner";
+import { PreAuthModal } from "./features/automation/PreAuthModal";
+import { AutomationNotices } from "./features/automation/AutomationNotices";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useContentStore } from "./stores/contentStore";
 import { searchContent } from "./services/dataHubService";
@@ -345,6 +347,9 @@ function App() {
       {/* Update available — shown when backend emits `update-available` on startup */}
       <UpdateBanner />
 
+      {/* Automation permission denial banner + grant/dismiss toasts */}
+      <AutomationNotices />
+
       {/* Tab content — relative z-index above orbs */}
       <main className="relative z-[1]">
         {activeTab === "content" && <ContentList />}
@@ -353,6 +358,9 @@ function App() {
         {activeTab === "datahub" && <DataHubView />}
         {activeTab === "settings" && <SettingsView />}
       </main>
+
+      {/* First-launch Automation permission modal — fullscreen overlay */}
+      <PreAuthModal />
 
       {/* Floating bubble is now a separate always-on-top window (BubbleView) */}
     </div>
