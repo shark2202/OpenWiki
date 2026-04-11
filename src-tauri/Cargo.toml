@@ -1,6 +1,6 @@
 [package]
 name = "openwiki"
-version = "0.1.1"
+version = "0.1.2"
 description = "OpenWiki - Mac 桌面 AI 知识管理工具"
 authors = ["openwiki"]
 license = "MIT"
