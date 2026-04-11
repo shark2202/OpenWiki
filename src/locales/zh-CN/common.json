@@ -55,7 +55,11 @@
     "saved": "已保存",
     "autoSaveCountdown": "{{countdown}}s 后自动保存",
     "autoDismissCountdown": "{{countdown}}s 后自动丢弃",
-    "clickToSave": "点击保存"
+    "clickToSave": "点击保存",
+    "saveFailed": "保存失败",
+    "retry": "重试",
+    "copyError": "复制错误",
+    "dismiss": "忽略"
   },
   "spotlight": {
     "addNotePlaceholder": "添加备注，回车保存…",

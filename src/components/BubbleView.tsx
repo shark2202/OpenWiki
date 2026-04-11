@@ -40,6 +40,13 @@ export default function BubbleView() {
   const [defaultAction, setDefaultAction] = useState<"save" | "dismiss">("dismiss");
   // ★ Key state: once confirmed, ONLY render success UI. Nothing can override this.
   const [confirmed, setConfirmed] = useState(false);
+  // Failure state: when confirm_capture throws a real error (not just
+  // "Moved to top" dedup), we expand to a red capsule showing the error
+  // so the user can retry, copy the error, or dismiss. Without this the
+  // old code silently swallowed backend errors and showed success, which
+  // is how the "clicked confirm but nothing saved" report came in.
+  const [failureError, setFailureError] = useState<string | null>(null);
+  const [failureCountdown, setFailureCountdown] = useState(10);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingRef = useRef<PendingCapture | null>(null);
   const appWindow = useRef(getCurrentWindow());
@@ -70,7 +77,10 @@ export default function BubbleView() {
     if (!capture || saving || confirmed) return;
     clearTimer();
     setSaving(true);
+    // Clear any prior failure so retry flow works cleanly
+    setFailureError(null);
 
+    let backendError: string | null = null;
     try {
       await invoke("confirm_capture", {
         contentType: capture.content_type,
@@ -82,9 +92,35 @@ export default function BubbleView() {
       });
     } catch (e) {
       console.error("confirm failed:", e);
+      backendError = typeof e === "string" ? e : (e as Error)?.message ?? String(e);
     }
 
-    // If expanded, shrink window back to circle size first
+    // "Moved to top" is not a real failure — it's the backend's dedup signal
+    // meaning "you already have this content, I bumped it to the top of the
+    // list". From the user's perspective the save succeeded, so fall through
+    // to the success animation.
+    const isRealFailure = backendError !== null && backendError !== "Moved to top";
+
+    if (isRealFailure) {
+      // Grow the window to capsule size so the failure UI has room to breathe.
+      // (Skipped if we're already in the expanded memo state — same window size.)
+      if (!expanded) {
+        try {
+          const win = appWindow.current;
+          const { LogicalSize, LogicalPosition } = await import("@tauri-apps/api/dpi");
+          const scale = await win.scaleFactor();
+          const pos = await win.outerPosition();
+          const heightDiff = EXPANDED_H - CIRCLE_WIN_H;
+          await win.setPosition(new LogicalPosition(pos.x / scale, pos.y / scale - heightDiff));
+          await win.setSize(new LogicalSize(CAPSULE_W, EXPANDED_H));
+        } catch {}
+      }
+      setSaving(false);
+      setFailureError(backendError!);
+      return;
+    }
+
+    // Success (or dedup). If expanded, shrink window back to circle size.
     if (expanded) {
       try {
         const win = appWindow.current;
@@ -106,6 +142,32 @@ export default function BubbleView() {
       try { await appWindow.current.close(); } catch {}
     }, 1200);
   }, [saving, confirmed, clearTimer, memo, expanded, bubblePosition, bubbleStyle]);
+
+  // Retry from the failure state: reset failureError + saving, then call
+  // confirm() again. confirm() will re-invoke the backend and route to
+  // either success or a fresh failure UI.
+  const handleRetry = useCallback(async () => {
+    setFailureError(null);
+    setSaving(false);
+    // Defer one tick so state updates land before confirm() re-checks them
+    setTimeout(() => { confirm(); }, 0);
+  }, [confirm]);
+
+  // Copy the error to clipboard so the user can paste it to the developer.
+  // Includes timestamp to disambiguate multiple failures.
+  const handleCopyError = useCallback(async () => {
+    if (!failureError) return;
+    const report = [
+      "OpenWiki 保存失败报告",
+      `时间: ${new Date().toLocaleString()}`,
+      `错误: ${failureError}`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(report);
+    } catch (e) {
+      console.error("Copy failed:", e);
+    }
+  }, [failureError]);
 
   // Expand circle → card with preview + input
   const expandToCapsule = useCallback(async () => {
@@ -229,7 +291,7 @@ export default function BubbleView() {
   // Countdown (only when NOT expanded and NOT confirmed)
   // ★ When countdown reaches 0, execute default_action (not always dismiss)
   useEffect(() => {
-    if (!pending || expanded || confirmed) return;
+    if (!pending || expanded || confirmed || failureError) return;
     timerRef.current = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -243,7 +305,25 @@ export default function BubbleView() {
       });
     }, 1000);
     return () => clearTimer();
-  }, [pending, expanded, confirmed, defaultAction, dismiss, confirm, clearTimer]);
+  }, [pending, expanded, confirmed, failureError, defaultAction, dismiss, confirm, clearTimer]);
+
+  // Failure state: give the user 10 seconds to read the error + decide
+  // (retry, copy, or ignore), then auto-close so the bubble doesn't
+  // hang around forever if they walked away from the computer.
+  useEffect(() => {
+    if (!failureError) return;
+    setFailureCountdown(10);
+    let remaining = 10;
+    const timer = setInterval(() => {
+      remaining -= 1;
+      setFailureCountdown(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        closeWindow();
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [failureError, closeWindow]);
 
   const isRight = bubblePosition.includes("right");
   const isLeft = bubblePosition.includes("left");
@@ -271,6 +351,193 @@ export default function BubbleView() {
     : isUrl
     ? (pending.preview || pending.raw_text || "").slice(0, 60)
     : (pending.raw_text || pending.preview || "").slice(0, 60);
+
+  // ─── Failure State (highest priority — overrides both circle and bar) ───
+  // Shown when confirm_capture throws a real backend error. Unified across
+  // bubble styles so the user gets the same information layout regardless
+  // of whether they picked circle or bar mode.
+  if (failureError) {
+    return (
+      <div
+        className="select-none"
+        style={{
+          width: CAPSULE_W,
+          height: EXPANDED_H,
+          background: "transparent",
+          display: "flex",
+          justifyContent: isRight ? "flex-end" : isLeft ? "flex-start" : "center",
+        }}
+      >
+        <div
+          style={{
+            width: CAPSULE_W,
+            borderRadius: 14,
+            background: "rgb(15, 15, 30)",
+            boxShadow: [
+              "0 8px 32px rgba(0, 0, 0, 0.5)",
+              "0 0 12px rgba(220, 38, 38, 0.18)",
+              "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
+              "inset 0 0 0 1px rgba(220, 38, 38, 0.22)",
+            ].join(", "),
+            padding: "12px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Top: icon + message */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(220, 38, 38, 0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#F87171" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#F87171" }}>
+                  {t("bubble.saveFailed")}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "JetBrains Mono, monospace",
+                    color: "rgba(255, 255, 255, 0.25)",
+                  }}
+                >
+                  {failureCountdown}s
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "rgba(255, 255, 255, 0.65)",
+                  lineHeight: 1.5,
+                  wordBreak: "break-word",
+                  maxHeight: 48,
+                  overflowY: "auto",
+                }}
+              >
+                {failureError}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom: actions row */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button
+              onClick={handleRetry}
+              disabled={saving}
+              style={{
+                height: 28,
+                padding: "0 10px",
+                borderRadius: 8,
+                background: "rgba(249, 115, 22, 0.2)",
+                border: "1px solid rgba(249, 115, 22, 0.3)",
+                color: "#FDBA74",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              {t("bubble.retry")}
+            </button>
+            <button
+              onClick={handleCopyError}
+              style={{
+                height: 28,
+                padding: "0 10px",
+                borderRadius: 8,
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                color: "rgba(255, 255, 255, 0.6)",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              {t("bubble.copyError")}
+            </button>
+            <button
+              onClick={closeWindow}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.08)",
+                color: "rgba(255, 255, 255, 0.55)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: "auto",
+              }}
+              aria-label={t("bubble.dismiss")}
+            >
+              <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Countdown progress bar along the bottom edge */}
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 2,
+              background: "rgba(255, 255, 255, 0.03)",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${(failureCountdown / 10) * 100}%`,
+                background: "linear-gradient(90deg, #DC2626, #F87171)",
+                transition: "width 1s linear",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Circle Mode ───
   if (bubbleStyle === "circle") {

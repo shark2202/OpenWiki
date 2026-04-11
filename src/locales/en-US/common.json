@@ -55,7 +55,11 @@
     "saved": "Saved",
     "autoSaveCountdown": "Auto-save in {{countdown}}s",
     "autoDismissCountdown": "Auto-dismiss in {{countdown}}s",
-    "clickToSave": "Click to save"
+    "clickToSave": "Click to save",
+    "saveFailed": "Save failed",
+    "retry": "Retry",
+    "copyError": "Copy error",
+    "dismiss": "Dismiss"
   },
   "spotlight": {
     "addNotePlaceholder": "Add a note, press Enter to save...",
