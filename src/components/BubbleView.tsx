@@ -712,7 +712,7 @@ export default function BubbleView() {
 
           {/* Layer 2: Confirmed content — fades in on confirm */}
           <div
-            className="absolute inset-0 flex items-center justify-center"
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
             style={{ opacity: confirmed ? 1 : 0, transition: "opacity 0.25s ease" }}
           >
             {/* Checkmark with draw animation */}
@@ -847,7 +847,7 @@ export default function BubbleView() {
           </div>
         </div>
         {/* Layer 2: Bar confirmed content — fades in on confirm */}
-        <div className="absolute inset-0 flex items-center justify-center gap-2"
+        <div className="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none"
           style={{ opacity: confirmed ? 1 : 0, transition: "opacity 0.25s ease" }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 13l4 4L19 7"
