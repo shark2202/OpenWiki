@@ -7,13 +7,15 @@ import { SettingsView } from "./features/settings/SettingsView";
 import { DataHubView } from "./features/data-hub/DataHubView";
 import { RadarView } from "./features/digest/RadarView";
 import { WikiView } from "./features/wiki/WikiView";
+import { WikiPageDetail } from "./features/wiki/WikiPageDetail";
 import { UpdateBanner } from "./features/update/UpdateBanner";
 import { PreAuthModal } from "./features/automation/PreAuthModal";
 import { AutomationNotices } from "./features/automation/AutomationNotices";
 import { useSettingsStore } from "./stores/settingsStore";
 import { useContentStore } from "./stores/contentStore";
+import { useWikiStore } from "./stores/wikiStore";
 import { searchContent } from "./services/dataHubService";
-import { searchWiki } from "./services/wikiService";
+import { searchWiki, getWikiPage } from "./services/wikiService";
 import type { CapturedContent } from "./types/content";
 import type { WikiPage } from "./types/wiki";
 // FloatingBubble is now a separate system-level window (see BubbleView.tsx)
@@ -45,6 +47,8 @@ function App() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadFromDB = useSettingsStore((s) => s.loadFromDB);
   const setHighlightedIds = useContentStore((s) => s.setHighlightedIds);
+  const deleteWikiPageInStore = useWikiStore((s) => s.deletePage);
+  const [previewWikiPage, setPreviewWikiPage] = useState<WikiPage | null>(null);
 
   // Debounced search — searches both content and wiki pages
   const doSearch = useCallback((query: string) => {
@@ -136,24 +140,24 @@ function App() {
     return () => window.removeEventListener("navigate-to-content", handler);
   }, [switchTab]);
 
-  // Listen for "navigate-to-wiki-page" events from ContentCard's knowledge tags
+  // Listen for "navigate-to-wiki-page" events from ContentCard's knowledge tags.
+  // Instead of switching to the wiki tab, open the page detail as an overlay
+  // on top of whatever tab the user is currently on — keeps context.
   useEffect(() => {
-    const handler = (e: Event) => {
+    const handler = async (e: Event) => {
       const customEvent = e as CustomEvent<{ pageId?: string }>;
-      switchTab("wiki");
-      // WikiView will pick up the page selection via store
-      if (customEvent.detail?.pageId) {
-        // Small delay to let WikiView mount, then select page
-        setTimeout(() => {
-          import("./stores/wikiStore").then(({ useWikiStore }) => {
-            useWikiStore.getState().selectPage(customEvent.detail?.pageId ?? "");
-          });
-        }, 100);
+      const pageId = customEvent.detail?.pageId;
+      if (!pageId) return;
+      try {
+        const page = await getWikiPage(pageId);
+        if (page) setPreviewWikiPage(page);
+      } catch (err) {
+        console.error("Failed to load wiki page for preview:", err);
       }
     };
     window.addEventListener("navigate-to-wiki-page", handler);
     return () => window.removeEventListener("navigate-to-wiki-page", handler);
-  }, [switchTab]);
+  }, []);
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#FAFAF8] dark:bg-[#0C0A09] transition-colors duration-300">
@@ -377,6 +381,24 @@ function App() {
           <SettingsView />
         </div>
       </main>
+
+      {/* Wiki page detail overlay — shown when user clicks a knowledge tag
+          on a content card. Lets them peek the linked wiki page without
+          leaving the current tab. */}
+      {previewWikiPage && (
+        <WikiPageDetail
+          page={previewWikiPage}
+          onClose={() => setPreviewWikiPage(null)}
+          onDelete={async (id) => {
+            await deleteWikiPageInStore(id);
+            setPreviewWikiPage(null);
+          }}
+          onNavigateToContent={(contentId) => {
+            setPreviewWikiPage(null);
+            switchTab("content", [contentId]);
+          }}
+        />
+      )}
 
       {/* First-launch Automation permission modal — fullscreen overlay */}
       <PreAuthModal />

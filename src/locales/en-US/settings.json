@@ -132,7 +132,12 @@
     "confirmExport": "Export",
     "exportedAll": "Exported {{count}} items",
     "exportedRange": "Exported {{start}} to {{end}}",
-    "exportedFinderHint": ", opened in Finder"
+    "exportedFinderHint": ", opened in Finder",
+    "copyPath": "Copy Markdown Path (for AI)",
+    "copyPathDesc": "Generate the latest Markdown file and copy its path to clipboard. Paste into Claude / ChatGPT / Cursor or any AI tool that can read local files.",
+    "copyPathBtn": "Copy File Path",
+    "copyingPath": "Generating...",
+    "pathCopied": "Path copied"
   },
   "wiki": {
     "title": "Knowledge Base",

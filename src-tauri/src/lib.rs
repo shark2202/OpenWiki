@@ -238,6 +238,7 @@ pub fn run() {
             commands::datahub::open_export_dir,
             commands::datahub::get_storage_info,
             commands::datahub::export_all_single,
+            commands::datahub::export_all_single_quiet,
             commands::datahub::export_range_single,
             commands::datahub::open_data_folder,
             commands::attention::get_attention_insights,

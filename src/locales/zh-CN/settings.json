@@ -132,7 +132,12 @@
     "confirmExport": "确认导出",
     "exportedAll": "已导出 {{count}} 条内容",
     "exportedRange": "已导出 {{start}} 至 {{end}}",
-    "exportedFinderHint": "，已在 Finder 中打开"
+    "exportedFinderHint": "，已在 Finder 中打开",
+    "copyPath": "复制 Markdown 路径（给 AI 用）",
+    "copyPathDesc": "生成最新 Markdown 文件并复制路径到剪贴板，可直接粘到 Claude / ChatGPT / Cursor 等支持读取本地文件的 AI 工具",
+    "copyPathBtn": "复制文件路径",
+    "copyingPath": "生成中...",
+    "pathCopied": "已复制路径"
   },
   "wiki": {
     "title": "知识库",

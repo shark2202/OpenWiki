@@ -1110,6 +1110,8 @@ function ExportSection({ totalItems }: { totalItems: number }) {
   const [rangeOpen, setRangeOpen] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [copyPathStatus, setCopyPathStatus] = useState<"idle" | "copying" | "done">("idle");
+  const [copiedPath, setCopiedPath] = useState("");
 
   const handleExportAll = async () => {
     setExportStatus("exporting");
@@ -1121,6 +1123,23 @@ function ExportSection({ totalItems }: { totalItems: number }) {
     } catch (e) {
       console.error(e);
       setExportStatus("idle");
+    }
+  };
+
+  const handleCopyPath = async () => {
+    setCopyPathStatus("copying");
+    try {
+      // Quiet variant — same export, but does NOT pop Finder.
+      // We just want the path on the clipboard so the user can
+      // paste it into an AI tool.
+      const path = await invoke<string>("export_all_single_quiet");
+      await navigator.clipboard.writeText(path);
+      setCopiedPath(path);
+      setCopyPathStatus("done");
+      setTimeout(() => setCopyPathStatus("idle"), 4000);
+    } catch (e) {
+      console.error(e);
+      setCopyPathStatus("idle");
     }
   };
 
@@ -1158,6 +1177,37 @@ function ExportSection({ totalItems }: { totalItems: number }) {
         >
           {exportStatus === "exporting" ? t("export.exporting") : t("export.exportAllBtn")}
         </button>
+      </div>
+
+      {/* Copy markdown path — for pasting into local AI tools */}
+      <div className="p-4">
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("export.copyPath")}</div>
+        <div className="text-xs text-gray-400 dark:text-slate-500 mb-3">
+          {t("export.copyPathDesc")}
+        </div>
+        <button
+          onClick={handleCopyPath}
+          disabled={copyPathStatus === "copying"}
+          className="w-full py-2 text-sm font-medium rounded-lg border
+                     text-gray-700 dark:text-gray-200 border-gray-200/60 dark:border-white/[0.10]
+                     bg-white/40 dark:bg-white/[0.04]
+                     hover:bg-white/70 dark:hover:bg-white/[0.08]
+                     disabled:opacity-50 transition-colors"
+        >
+          {copyPathStatus === "copying"
+            ? t("export.copyingPath")
+            : copyPathStatus === "done"
+            ? `✓ ${t("export.pathCopied")}`
+            : t("export.copyPathBtn")}
+        </button>
+        {copyPathStatus === "done" && copiedPath && (
+          <div className="mt-2 px-2.5 py-1.5 rounded-md text-[11px] font-mono break-all
+                          text-gray-500 dark:text-slate-400
+                          bg-gray-50/70 dark:bg-white/[0.03]
+                          border border-gray-100/60 dark:border-white/[0.05]">
+            {copiedPath}
+          </div>
+        )}
       </div>
 
       {/* Export date range */}

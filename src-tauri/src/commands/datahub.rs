@@ -96,6 +96,22 @@ pub async fn export_all_single(state: State<'_, AppState>) -> Result<String, Str
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Same as export_all_single but does NOT pop Finder.
+/// Used when the user just wants the file path on the clipboard
+/// (e.g. to paste into an AI tool like Claude Desktop / Code that
+/// can read local files). Popping Finder here would steal focus
+/// and feel like an unwanted side effect.
+#[tauri::command]
+pub async fn export_all_single_quiet(state: State<'_, AppState>) -> Result<String, String> {
+    let repo = Repository::new(state.db.clone());
+    let export_dir = resolve_export_dir(&repo);
+
+    let (path, _count) =
+        markdown::export_all_single_file(&repo, &export_dir).map_err(|e| e.to_string())?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// Export a date range into a single markdown file.
 /// Returns the file path so frontend can reveal it in Finder.
 #[tauri::command]
