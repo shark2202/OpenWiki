@@ -7,39 +7,16 @@ use chrono::Utc;
 use tauri::State;
 
 /// Trigger AI weekly report generation.
-/// Reads the AI settings (provider, model, api_key) from the database,
-/// then calls the report generation pipeline.
+/// The report generator resolves provider, model, API key, and OAuth state.
 #[tauri::command]
 pub async fn generate_report(state: State<'_, AppState>) -> Result<WeeklyReport, String> {
     let db = state.db.clone();
-    let repo = Repository::new(db.clone());
 
-    // Read AI settings from the database
-    let provider = repo
-        .get_setting("ai_provider")
-        .map_err(|e| format!("Failed to read AI provider: {}", e))?
-        .unwrap_or_else(|| "anthropic".to_string());
+    log::info!("Generating weekly report");
 
-    let api_key = repo
-        .get_setting(&format!("ai_api_key_{}", provider))
-        .ok()
-        .flatten()
-        .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
-        .unwrap_or_default();
-
-    if api_key.is_empty() {
-        return Err("Please configure an AI API Key in settings first".to_string());
-    }
-
-    let model = repo
-        .get_setting("ai_model")
-        .map_err(|e| format!("Failed to read AI model: {}", e))?
-        .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
-
-    log::info!("Generating weekly report: provider={}, model={}", provider, model);
-
-    // Generate the report (async)
-    let report = report_generator::generate_weekly_report(db, &api_key, &provider, &model).await?;
+    // Generate the report (async). Provider/model/key/OAuth resolution lives in
+    // the generator so weekly reports follow the same AI path as summaries/wiki.
+    let report = report_generator::generate_weekly_report(db).await?;
 
     Ok(report)
 }

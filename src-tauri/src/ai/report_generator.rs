@@ -1,4 +1,3 @@
-use crate::ai::client::AiClient;
 use crate::ai::content_filter;
 use crate::ai::preference_engine;
 use crate::ai::prompts;
@@ -26,6 +25,144 @@ struct AiSectionJson {
     content_ids: Option<Vec<String>>,
 }
 
+struct ReportAiResponse {
+    text: String,
+    model_used: String,
+    tokens_used: Option<i32>,
+}
+
+async fn call_report_ai(
+    db: Arc<Database>,
+    system_prompt: &str,
+    user_message: &str,
+    max_tokens: u32,
+) -> Result<ReportAiResponse, String> {
+    let repo = Repository::new(db.clone());
+    let provider_str = repo
+        .get_setting("ai_provider")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "anthropic".to_string());
+    let model = repo
+        .get_setting("ai_model")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
+
+    log::info!(
+        "Weekly report AI call: provider={}, model={}",
+        provider_str,
+        model
+    );
+
+    if provider_str == "openai" {
+        if let Some(result) = crate::ai::attention_analyzer::try_codex_call(
+            db.clone(),
+            system_prompt,
+            user_message,
+            0.3,
+            true,
+        )
+        .await
+        {
+            match result {
+                Ok(text) => {
+                    return Ok(ReportAiResponse {
+                        text,
+                        model_used: if model == "auto" {
+                            "openai:auto".to_string()
+                        } else {
+                            model
+                        },
+                        tokens_used: None,
+                    });
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Codex OAuth weekly report failed, falling back to API key: {}",
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    if provider_str == "google" {
+        if let Some(result) = crate::ai::attention_analyzer::try_gemini_call(
+            db.clone(),
+            system_prompt,
+            user_message,
+            0.3,
+            true,
+        )
+        .await
+        {
+            match result {
+                Ok(text) => {
+                    return Ok(ReportAiResponse {
+                        text,
+                        model_used: if model == "auto" {
+                            "google:auto".to_string()
+                        } else {
+                            model
+                        },
+                        tokens_used: None,
+                    });
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Gemini OAuth weekly report failed, falling back to API key: {}",
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    let is_local_or_custom =
+        provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
+    let provider_key = format!("ai_api_key_{}", provider_str);
+    let api_key = repo
+        .get_setting(&provider_key)
+        .ok()
+        .flatten()
+        .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
+        .unwrap_or_default();
+
+    if api_key.is_empty() && !is_local_or_custom {
+        return Err(format!(
+            "Please configure an AI API Key or OAuth login for {} in settings first",
+            provider_str
+        ));
+    }
+
+    let base_url = repo
+        .get_setting("ai_custom_base_url")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let provider = crate::ai::attention_analyzer::AnalysisProvider::from_str_with_base(
+        &provider_str,
+        &base_url,
+    );
+    let text = crate::ai::attention_analyzer::call_analysis_api(
+        &provider,
+        &api_key,
+        &model,
+        system_prompt,
+        user_message,
+        max_tokens,
+        true,
+    )
+    .await?;
+
+    Ok(ReportAiResponse {
+        text,
+        model_used: model,
+        tokens_used: None,
+    })
+}
+
 /// Main entry point: generate a weekly report using the AI pipeline.
 ///
 /// Steps:
@@ -39,13 +176,8 @@ struct AiSectionJson {
 /// 8. Parse response JSON into WeeklyReport + ReportSections
 /// 9. Save to database
 /// 10. Return complete report
-pub async fn generate_weekly_report(
-    db: Arc<Database>,
-    api_key: &str,
-    provider: &str,
-    model: &str,
-) -> Result<WeeklyReport, String> {
-    log::info!("Generating weekly report, provider={}, model={}", provider, model);
+pub async fn generate_weekly_report(db: Arc<Database>) -> Result<WeeklyReport, String> {
+    log::info!("Generating weekly report");
 
     // Resolve locale for prompts
     let locale = crate::locale::resolve_locale(&db);
@@ -159,13 +291,12 @@ pub async fn generate_weekly_report(
 
     // Step 6: Build the prompt
     let system_prompt = prompts::weekly_report_system_prompt(&locale);
-    let user_message = prompts::weekly_report_user_message(&content_summaries, &preference_summary, &locale);
+    let user_message =
+        prompts::weekly_report_user_message(&content_summaries, &preference_summary, &locale);
 
-    // Step 7: Call the AI API
-    let client = AiClient::new(api_key.to_string(), provider.to_string(), model.to_string());
-
-    let ai_response = client
-        .send_message(&system_prompt, &user_message)
+    // Step 7: Call the AI API through the same multi-provider path used by
+    // content summaries and wiki generation.
+    let ai_response = call_report_ai(db.clone(), &system_prompt, &user_message, 4096)
         .await
         .map_err(|e| format!("AI generation failed: {}", e))?;
 
@@ -265,7 +396,7 @@ pub async fn generate_weekly_report(
         summary_text: ai_report.summary.clone(),
         report_json,
         content_count,
-        model_used: model.to_string(),
+        model_used: ai_response.model_used,
         tokens_used: ai_response.tokens_used,
         generated_at,
         sections,

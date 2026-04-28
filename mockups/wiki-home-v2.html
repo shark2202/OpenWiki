@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>OpenWiki 知识库首屏 · 方案 A 改进版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     OpenWiki Design System — 亮色默认（来自 DESIGN.md）
+     ============================================================ */
+  :root {
+    --bg: #FAFAF8;
+    --surface: #FFFFFF;
+    --surface-raised: #F5F5F0;
+    --border: #E7E5E4;
+    --border-soft: rgba(28,25,23,0.06);
+    --text-primary: #1C1917;
+    --text-secondary: #57534E;
+    --text-muted: #A8A29E;
+    --text-disabled: #D6D3D1;
+    --accent: #F97316;
+    --accent-hover: #EA580C;
+    --accent-soft: #FFF7ED;
+    --green: #16A34A;
+    --amber: #CA8A04;
+    --blue: #2563EB;
+    --purple: #7C3AED;
+    --red: #DC2626;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .font-display { font-family: 'Cabinet Grotesk', sans-serif; letter-spacing: -0.02em; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* —— Switcher：顶部子视图切换 ———————————————————— */
+  .switcher {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(250,250,248,0.92); backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 12px;
+  }
+  .switcher-label {
+    font-size: 11px; color: var(--text-muted);
+    letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700;
+  }
+  .switcher-btn {
+    padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    background: transparent; color: var(--text-secondary); cursor: pointer;
+    border: 1px solid var(--border); transition: all 150ms ease;
+  }
+  .switcher-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  .switcher-btn.active {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(249,115,22,0.35);
+  }
+
+  /* —— App frame：模拟 Tauri 窗口 ———————————————————— */
+  .app-frame {
+    margin: 24px auto; max-width: 1280px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(28,25,23,0.08);
+  }
+  .titlebar {
+    height: 40px; display: flex; align-items: center;
+    padding: 0 16px; border-bottom: 1px solid var(--border);
+    background: var(--surface); gap: 8px;
+  }
+  .titlebar-dots { display: flex; gap: 6px; margin-right: 14px; }
+  .titlebar-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .brand {
+    font-family: 'Cabinet Grotesk', sans-serif; font-weight: 800;
+    font-size: 15px; color: var(--accent); letter-spacing: -0.01em;
+    margin-right: 24px;
+  }
+  .top-tabs { display: flex; gap: 2px; margin: 0 auto; }
+  .top-tab {
+    padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 5px;
+  }
+  .top-tab.active { background: var(--accent-soft); color: var(--accent); }
+  .top-search {
+    padding: 6px; border-radius: 6px; color: var(--text-muted); cursor: pointer;
+  }
+
+  /* —— Main layout ———————————————————————————— */
+  .main-area {
+    display: flex; height: 740px;
+    background: var(--bg);
+  }
+  .left-nav {
+    width: 56px; flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    padding: 12px 6px;
+    display: flex; flex-direction: column; gap: 4px; align-items: center;
+    background: var(--surface);
+  }
+  .nav-icon {
+    width: 44px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); cursor: pointer; position: relative;
+    transition: all 150ms ease;
+  }
+  .nav-icon:hover { color: var(--text-primary); background: var(--surface-raised); }
+  .nav-icon.active { background: var(--accent-soft); color: var(--accent); }
+  .nav-icon .badge {
+    position: absolute; top: 6px; right: 8px; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--amber);
+  }
+
+  .content-area { flex: 1; overflow-y: auto; position: relative; }
+
+  /* —— Shared components —————————————————————— */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    background: var(--surface); color: var(--text-secondary);
+    border: 1px solid var(--border); cursor: pointer; transition: all 120ms;
+    white-space: nowrap;
+  }
+  .chip:hover {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(249,115,22,0.25);
+  }
+  .chip.active {
+    background: var(--accent-soft); color: var(--accent);
+    border-color: rgba(249,115,22,0.35);
+  }
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+    font-weight: 700; color: var(--text-muted);
+  }
+  .dashed { border-bottom: 1px dashed rgba(28,25,23,0.07); }
+  .page-type-badge {
+    font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    min-width: 50px; text-align: center; flex-shrink: 0;
+  }
+
+  .hidden-option { display: none; }
+
+  /* —— Form inputs ———————————————————————————— */
+  .ask-input {
+    width: 100%; min-height: 76px; padding: 16px 56px 16px 18px;
+    border-radius: 12px;
+    background: var(--surface); border: 1.5px solid var(--border);
+    color: var(--text-primary); font-size: 15px; line-height: 1.5;
+    outline: none; resize: none; font-family: inherit;
+    transition: border-color 150ms ease;
+  }
+  .ask-input:focus { border-color: var(--accent); }
+  .ask-input::placeholder { color: var(--text-muted); }
+
+  .ask-send {
+    position: absolute; right: 10px; bottom: 10px;
+    width: 38px; height: 38px; border-radius: 8px;
+    background: var(--accent-hover); color: white;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 150ms ease;
+  }
+  .ask-send:hover { background: var(--accent); }
+
+  .search-input {
+    width: 100%; padding: 11px 14px 11px 38px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-primary); font-size: 13px; outline: none;
+    transition: border-color 150ms ease;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-muted); }
+
+  /* —— List rows (浏览页用，要更紧凑) ———————————————— */
+  .row-item {
+    padding: 10px 6px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px dashed rgba(28,25,23,0.07); cursor: pointer;
+    transition: background 100ms ease;
+  }
+  .row-item:hover { background: var(--surface-raised); }
+  .row-item.stale { background: rgba(202,138,4,0.04); }
+  .row-title {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .row-meta {
+    font-size: 11px; color: var(--text-muted);
+    display: flex; gap: 8px; align-items: center;
+  }
+  .row-date {
+    font-size: 10px; color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* —— Conversation rows (提问页用，更密) ———————————————— */
+  .conv-item {
+    padding: 8px 4px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px dashed rgba(28,25,23,0.07);
+    cursor: pointer; transition: background 100ms ease;
+  }
+  .conv-item:hover { background: var(--surface-raised); border-radius: 4px; }
+  .conv-text {
+    flex: 1; font-size: 13px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .conv-date {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: var(--text-muted); flex-shrink: 0;
+  }
+
+  /* —— Status block on home ———————————————————————— */
+  .status-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    cursor: pointer; transition: all 120ms ease;
+  }
+  .status-card:hover {
+    border-color: rgba(249,115,22,0.3);
+    background: var(--accent-soft);
+  }
+  .status-icon {
+    width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-text { flex: 1; min-width: 0; }
+  .status-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .status-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     Switcher：模拟左侧 nav 切换三个子视图
+     ============================================================ -->
+<div class="switcher">
+  <span class="switcher-label">查看</span>
+  <button class="switcher-btn active" data-sub="ask">提问（首页）</button>
+  <button class="switcher-btn" data-sub="browse">浏览</button>
+  <button class="switcher-btn" data-sub="graph">图谱</button>
+  <div style="flex:1"></div>
+  <span style="font-size:10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+    OpenWiki · 知识库重设计 v2 · 方案 A 改进版
+  </span>
+</div>
+
+<!-- ============================================================
+     App Frame
+     ============================================================ -->
+<div class="app-frame">
+  <!-- titlebar -->
+  <div class="titlebar">
+    <div class="titlebar-dots">
+      <div class="titlebar-dot" style="background:#FF5F57"></div>
+      <div class="titlebar-dot" style="background:#FEBC2E"></div>
+      <div class="titlebar-dot" style="background:#28C840"></div>
+    </div>
+    <div class="brand">OpenWiki</div>
+    <div class="top-tabs">
+      <div class="top-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        内容
+      </div>
+      <div class="top-tab active">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        知识
+      </div>
+      <div class="top-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        洞察
+      </div>
+      <div class="top-tab">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        设置
+      </div>
+    </div>
+    <div class="top-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <!-- ═══ 左侧 nav ═══ -->
+    <div class="left-nav">
+      <div class="nav-icon active" data-sub="ask" title="提问">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="nav-icon" data-sub="browse" title="浏览">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </div>
+      <div class="nav-icon" data-sub="graph" title="图谱">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <div class="badge"></div>
+      </div>
+    </div>
+
+    <!-- ═══ 内容区 ═══ -->
+    <div class="content-area">
+
+      <!-- ─────────── 子视图 1：提问首页（极简版） ─────────── -->
+      <div id="sub-ask" class="sub-view" style="padding: 48px 32px;">
+        <div style="max-width: 680px; margin: 0 auto;">
+
+          <!-- 标题区 -->
+          <div style="text-align: center; margin-bottom: 28px;">
+            <h1 class="font-display" style="font-size: 28px; font-weight: 800; color: var(--text-primary); margin: 0 0 6px;">
+              你的知识库
+            </h1>
+            <div class="font-mono" style="font-size: 11px; color: var(--text-muted);">
+              161 页 · 81 关联 ·
+              <span style="color: var(--amber);">5 待更新</span>
+            </div>
+          </div>
+
+          <!-- 搜索框 —— 唯一主角 -->
+          <div style="position: relative;">
+            <textarea class="ask-input" placeholder="你记得的是什么？模糊描述就行，AI 会帮你找到..."></textarea>
+            <button class="ask-send">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+
+          <!-- 3 个最常用 chip —— 搜索起点提示 -->
+          <div style="display: flex; gap: 6px; margin-top: 12px; justify-content: center;">
+            <div class="chip">
+              本周新增
+              <span class="font-mono" style="color: var(--accent); font-weight: 700;">12</span>
+            </div>
+            <div class="chip">
+              LLM
+              <span class="font-mono" style="font-weight: 700;">42</span>
+            </div>
+            <div class="chip">
+              <span class="font-mono" style="color: var(--amber); font-weight: 700;">5</span>
+              待更新
+            </div>
+          </div>
+
+          <!-- 最近对话 —— 次要入口 -->
+          <div style="margin-top: 44px;">
+            <div class="section-label" style="padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+              <span>最近对话</span>
+              <span style="font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 11px; color: var(--text-muted); cursor: pointer;">查看全部 →</span>
+            </div>
+            <div>
+              <div class="conv-item">
+                <span class="conv-text">我之前保存了一个设计的 skill</span>
+                <span class="conv-date">04-13</span>
+              </div>
+              <div class="conv-item">
+                <span class="conv-text">大疆创始人访谈</span>
+                <span class="conv-date">04-13</span>
+              </div>
+              <div class="conv-item">
+                <span class="conv-text">我之前有一个采集什么插件？那个内容你帮我找一下</span>
+                <span class="conv-date">04-10</span>
+              </div>
+              <div class="conv-item">
+                <span class="conv-text">检查一下我的知识库,看有没有相关联但没连接的东西</span>
+                <span class="conv-date">04-09</span>
+              </div>
+              <div class="conv-item">
+                <span class="conv-text">关于 Context Engineering 的核心要点</span>
+                <span class="conv-date">04-08</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ─────────── 子视图 2：浏览（简洁版） ─────────── -->
+      <div id="sub-browse" class="sub-view hidden-option" style="padding: 24px 32px;">
+        <div style="max-width: 880px; margin: 0 auto;">
+
+          <!-- 顶部搜索（删了"浏览 · 共 161 个"那种 meta） -->
+          <div style="position: relative; margin-bottom: 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input class="search-input" placeholder="搜索 161 个知识页面..."/>
+          </div>
+
+          <!-- 简化的筛选行：只留 3 个常用 + "更多" -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+              <div class="chip active">
+                全部 <span class="font-mono" style="opacity: 0.7; margin-left: 2px;">161</span>
+              </div>
+              <div class="chip">
+                概念 <span class="font-mono" style="opacity: 0.55; margin-left: 2px;">61</span>
+              </div>
+              <div class="chip">
+                来源 <span class="font-mono" style="opacity: 0.55; margin-left: 2px;">43</span>
+              </div>
+              <div class="chip" style="color: var(--text-muted);">
+                更多
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+              ↓ 最近更新
+            </span>
+          </div>
+
+          <!-- 列表（更密：每行 padding 10px,展示 12 条） -->
+          <div style="border-top: 1px solid var(--border); margin-top: 8px;">
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--accent); background: var(--accent-soft);">CONCEPT</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">Context Engineering 基本原理</div>
+                <div class="row-meta"><span>LLM</span><span>·</span><span>AI Agent</span><span>·</span><span>提示词工程</span></div>
+              </div>
+              <span class="row-date">04-18</span>
+            </div>
+            <div class="row-item stale">
+              <span class="page-type-badge" style="color: var(--green); background: rgba(22,163,74,0.10);">SOURCE</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">Karpathy LLM 入门课 <span style="font-size: 9px; padding: 1px 5px; border-radius: 3px; background: rgba(202,138,4,0.14); color: var(--amber); font-weight: 700; margin-left: 4px;">⚠ 待更新</span></div>
+                <div class="row-meta"><span>LLM</span><span>·</span><span>教程</span><span>·</span><span>Neural Network</span></div>
+              </div>
+              <span class="row-date">04-17</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--blue); background: rgba(37,99,235,0.10);">ENTITY</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">Anthropic Claude 团队</div>
+                <div class="row-meta"><span>人物</span><span>·</span><span>AI</span><span>·</span><span>Claude</span></div>
+              </div>
+              <span class="row-date">04-15</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--accent); background: var(--accent-soft);">CONCEPT</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">MCP 协议基础</div>
+                <div class="row-meta"><span>协议</span><span>·</span><span>AI Agent</span><span>·</span><span>工具调用</span></div>
+              </div>
+              <span class="row-date">04-14</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--amber); background: rgba(202,138,4,0.12);">COMP</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">Obsidian vs Notion</div>
+                <div class="row-meta"><span>知识管理</span><span>·</span><span>工具对比</span></div>
+              </div>
+              <span class="row-date">04-13</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--text-muted); background: rgba(168,162,158,0.18);">QA</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">design-shotgun skill 怎么用</div>
+                <div class="row-meta"><span>设计</span><span>·</span><span>skill</span></div>
+              </div>
+              <span class="row-date">04-13</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--blue); background: rgba(37,99,235,0.10);">ENTITY</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">大疆创新 DJI</div>
+                <div class="row-meta"><span>公司</span><span>·</span><span>创业</span><span>·</span><span>硬件</span></div>
+              </div>
+              <span class="row-date">04-12</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--purple); background: rgba(124,58,237,0.10);">OVERVIEW</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">AI Agent 架构模式总览</div>
+                <div class="row-meta"><span>AI Agent</span><span>·</span><span>架构</span><span>·</span><span>ReAct</span></div>
+              </div>
+              <span class="row-date">04-11</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--accent); background: var(--accent-soft);">CONCEPT</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">Prompt Caching 命中率</div>
+                <div class="row-meta"><span>Claude API</span><span>·</span><span>性能优化</span></div>
+              </div>
+              <span class="row-date">04-10</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--green); background: rgba(22,163,74,0.10);">SOURCE</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">YC Office Hours 六问</div>
+                <div class="row-meta"><span>创业</span><span>·</span><span>YC</span><span>·</span><span>方法论</span></div>
+              </div>
+              <span class="row-date">04-09</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--accent); background: var(--accent-soft);">CONCEPT</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">许岑英语习得法</div>
+                <div class="row-meta"><span>英语</span><span>·</span><span>语言习得</span></div>
+              </div>
+              <span class="row-date">04-08</span>
+            </div>
+            <div class="row-item">
+              <span class="page-type-badge" style="color: var(--accent); background: var(--accent-soft);">CONCEPT</span>
+              <div style="flex: 1; min-width: 0;">
+                <div class="row-title">混合检索 (Hybrid Retrieval)</div>
+                <div class="row-meta"><span>RAG</span><span>·</span><span>向量检索</span></div>
+              </div>
+              <span class="row-date">04-07</span>
+            </div>
+          </div>
+
+          <div style="padding: 14px 4px; text-align: center; font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+            12 / 161 · 向下滚动加载
+          </div>
+        </div>
+      </div>
+
+      <!-- ─────────── 子视图 3：图谱（保持原样） ─────────── -->
+      <div id="sub-graph" class="sub-view hidden-option" style="position: absolute; inset: 0; overflow: hidden;">
+        <!-- 图谱区暂用占位说明，实际接现有 WikiGraphView 组件 -->
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                    background: var(--surface);
+                    background-image:
+                      radial-gradient(circle at 20% 30%, rgba(249,115,22,0.06) 0%, transparent 40%),
+                      radial-gradient(circle at 80% 70%, rgba(37,99,235,0.05) 0%, transparent 40%);">
+          <div style="text-align: center; padding: 32px;">
+            <div style="font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.08em; margin-bottom: 8px;">
+              GRAPH PLACEHOLDER
+            </div>
+            <div style="font-size: 14px; color: var(--text-secondary); max-width: 400px;">
+              图谱视图沿用现有 <code style="background: var(--surface-raised); padding: 2px 6px; border-radius: 4px; font-size: 12px;">WikiGraphView</code> 组件,不在本次重设计范围内
+            </div>
+          </div>
+        </div>
+
+        <!-- 角落 stats 模拟 -->
+        <div style="position: absolute; top: 16px; left: 20px; z-index: 5;">
+          <div class="font-mono" style="font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em;">
+            关联图谱
+          </div>
+          <div class="font-mono" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+            <span style="color: var(--text-primary); font-weight: 600;">161</span> 节点 ·
+            <span style="color: var(--text-primary); font-weight: 600;">81</span> 边
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 设计说明 -->
+<div style="max-width: 1280px; margin: 0 auto 48px; padding: 16px 24px; font-size: 13px; color: var(--text-secondary); line-height: 1.7;">
+  <strong style="color: var(--accent); font-weight: 700;">设计哲学 · 极简专注</strong><br>
+  <strong style="color: var(--text-primary);">提问首页</strong>:唯一主角是搜索框。标题 + 搜索 + 3 个常用 chip + 最近对话,就这四件事,其他全删<br>
+  <strong style="color: var(--text-primary);">浏览页</strong>:搜索 + 3 个类型 chip + 紧凑列表。删冗余 meta、排序隐式化<br>
+  <strong style="color: var(--text-primary);">图谱</strong>:不动,沿用现有 WikiGraphView 组件
+</div>
+
+<script>
+  // 子视图切换
+  document.querySelectorAll('.switcher-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sub = btn.dataset.sub;
+      // 切按钮 active
+      document.querySelectorAll('.switcher-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // 切 nav 图标 active
+      document.querySelectorAll('.nav-icon').forEach(n => n.classList.remove('active'));
+      document.querySelector(`.nav-icon[data-sub="${sub}"]`).classList.add('active');
+      // 切子视图
+      document.querySelectorAll('.sub-view').forEach(v => v.classList.add('hidden-option'));
+      document.getElementById(`sub-${sub}`).classList.remove('hidden-option');
+    });
+  });
+  // 左侧 nav 也可以点
+  document.querySelectorAll('.nav-icon').forEach(icon => {
+    icon.addEventListener('click', () => {
+      const sub = icon.dataset.sub;
+      document.querySelector(`.switcher-btn[data-sub="${sub}"]`).click();
+    });
+  });
+</script>
+
+</body>
+</html>
