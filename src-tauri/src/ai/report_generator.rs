@@ -305,17 +305,17 @@ pub async fn generate_weekly_report(db: Arc<Database>) -> Result<WeeklyReport, S
     // Step 8: Parse the JSON response
     let response_text = ai_response.text.trim().to_string();
 
-    // Strip potential markdown code block markers
-    let json_text = strip_markdown_code_block(&response_text);
+    let json_text = crate::ai::attention_analyzer::extract_json(&response_text);
 
-    let ai_report: AiReportJson = serde_json::from_str(&json_text).map_err(|e| {
-        log::error!(
-            "Failed to parse AI JSON: {}\nResponse: {}",
-            e,
-            &response_text
-        );
-        format!("Failed to parse report JSON: {}", e)
-    })?;
+    let ai_report: AiReportJson = crate::ai::attention_analyzer::parse_json_lenient(&json_text)
+        .map_err(|e| {
+            log::error!(
+                "Failed to parse AI JSON: {}\nResponse: {}",
+                e,
+                &response_text
+            );
+            format!("Failed to parse report JSON: {}", e)
+        })?;
 
     // Build the WeeklyReport and ReportSections
     let report_id = uuid::Uuid::new_v4().to_string();
@@ -410,33 +410,4 @@ pub async fn generate_weekly_report(db: Arc<Database>) -> Result<WeeklyReport, S
 
     // Step 10: Return the complete report
     Ok(report)
-}
-
-/// Strip markdown code block markers (```json ... ```) from a response string.
-fn strip_markdown_code_block(text: &str) -> String {
-    let trimmed = text.trim();
-
-    // Check for ```json or ``` prefix
-    let without_prefix = if trimmed.starts_with("```json") {
-        trimmed
-            .strip_prefix("```json")
-            .unwrap_or(trimmed)
-            .trim_start()
-    } else if trimmed.starts_with("```") {
-        trimmed.strip_prefix("```").unwrap_or(trimmed).trim_start()
-    } else {
-        trimmed
-    };
-
-    // Strip trailing ```
-    let result = if without_prefix.ends_with("```") {
-        without_prefix
-            .strip_suffix("```")
-            .unwrap_or(without_prefix)
-            .trim_end()
-    } else {
-        without_prefix
-    };
-
-    result.to_string()
 }

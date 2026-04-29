@@ -143,6 +143,7 @@ export const DEFAULT_BASE_URLS: Partial<Record<AIProvider, string>> = {
 };
 
 const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter", "dashscope", "google", "minimax", "deepseek", "ollama", "lmstudio", "custom"];
+const providerModelSettingKey = (provider: AIProvider) => `ai_model_${provider}`;
 
 export type CaptureMode = "auto" | "confirm";
 export type BubbleStyle = "circle" | "bar";
@@ -216,6 +217,7 @@ interface SettingsState {
   apiKey: string;
   provider: AIProvider;
   model: string;
+  providerModels: Partial<Record<AIProvider, string>>;
   customBaseUrl: string;
   theme: ThemeMode;
   languageMode: LanguageMode;
@@ -276,6 +278,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   apiKey: "",
   provider: "anthropic",
   model: "claude-sonnet-4-6",
+  providerModels: {},
   customBaseUrl: "",
   theme: "system",
   languageMode: "system" as LanguageMode,
@@ -312,7 +315,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         : "anthropic";
 
       const defaultModel = MODELS_BY_PROVIDER[provider][0]?.id || "";
-      const model = settings.ai_model || defaultModel;
+      const savedProviderModel = settings[providerModelSettingKey(provider)];
+      const model = savedProviderModel || settings.ai_model || defaultModel;
+      const providerModels = VALID_PROVIDERS.reduce<Partial<Record<AIProvider, string>>>(
+        (acc, p) => {
+          const saved = settings[providerModelSettingKey(p)];
+          if (saved) acc[p] = saved;
+          return acc;
+        },
+        {}
+      );
+      if (model) providerModels[provider] = model;
       const customBaseUrl = settings.ai_custom_base_url || DEFAULT_BASE_URLS[provider] || "";
 
       // Load per-provider API key
@@ -348,6 +361,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         apiKey,
         provider,
         model,
+        providerModels,
         customBaseUrl,
         theme,
         languageMode,
@@ -397,27 +411,73 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   },
 
   setProvider: async (provider) => {
+    const previous = useSettingsStore.getState();
+    const providerModels = {
+      ...previous.providerModels,
+      ...(previous.model ? { [previous.provider]: previous.model } : {}),
+    };
+    if (previous.model) {
+      updateSetting(providerModelSettingKey(previous.provider), previous.model).catch((e) =>
+        console.error("Failed to save current provider model:", e)
+      );
+    }
+
     const firstModel = MODELS_BY_PROVIDER[provider][0]?.id || "";
     const defaultBaseUrl = DEFAULT_BASE_URLS[provider] || "";
     // Load the API key for the new provider
     try {
       const settings = await getSettings();
       const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || "";
+      const savedProviderModel = settings[providerModelSettingKey(provider)];
+      const nextModel = providerModels[provider] || savedProviderModel || firstModel;
       const savedBaseUrl = settings.ai_custom_base_url || defaultBaseUrl;
-      set({ provider, model: firstModel, apiKey: providerKey, customBaseUrl: savedBaseUrl });
+      set({
+        provider,
+        model: nextModel,
+        providerModels: { ...providerModels, ...(nextModel ? { [provider]: nextModel } : {}) },
+        apiKey: providerKey,
+        customBaseUrl: savedBaseUrl,
+      });
+      updateSetting("ai_model", nextModel).catch((e) =>
+        console.error("Failed to save model:", e)
+      );
+      if (nextModel) {
+        updateSetting(providerModelSettingKey(provider), nextModel).catch((e) =>
+          console.error("Failed to save provider model:", e)
+        );
+      }
     } catch {
-      set({ provider, model: firstModel, apiKey: "", customBaseUrl: defaultBaseUrl });
+      const nextModel = providerModels[provider] || firstModel;
+      set({
+        provider,
+        model: nextModel,
+        providerModels: { ...providerModels, ...(nextModel ? { [provider]: nextModel } : {}) },
+        apiKey: "",
+        customBaseUrl: defaultBaseUrl,
+      });
+      updateSetting("ai_model", nextModel).catch((e) =>
+        console.error("Failed to save model:", e)
+      );
+      if (nextModel) {
+        updateSetting(providerModelSettingKey(provider), nextModel).catch((e) =>
+          console.error("Failed to save provider model:", e)
+        );
+      }
     }
     updateSetting("ai_provider", provider).catch((e) =>
       console.error("Failed to save provider:", e)
     );
-    updateSetting("ai_model", firstModel).catch((e) =>
-      console.error("Failed to save model:", e)
-    );
   },
 
   setModel: (model) => {
-    set({ model });
+    const { provider } = useSettingsStore.getState();
+    set((prev) => ({
+      model,
+      providerModels: { ...prev.providerModels, [provider]: model },
+    }));
+    updateSetting(providerModelSettingKey(provider), model).catch((e) =>
+      console.error("Failed to save provider model:", e)
+    );
     updateSetting("ai_model", model).catch((e) =>
       console.error("Failed to save model:", e)
     );

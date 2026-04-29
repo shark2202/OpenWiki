@@ -1,5 +1,6 @@
 use crate::storage::models::ContentForAnalysis;
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -462,7 +463,7 @@ pub fn validate_analysis(json_str: &str, item_count: usize) -> Result<BriefingAn
     let cleaned = extract_json(json_str);
 
     let mut analysis: BriefingAnalysis =
-        serde_json::from_str(&cleaned).map_err(|e| format!("JSON parse failed: {}", e))?;
+        parse_json_lenient(&cleaned).map_err(|e| format!("JSON parse failed: {}", e))?;
 
     analysis.topics.truncate(3);
 
@@ -477,8 +478,8 @@ pub fn validate_analysis(json_str: &str, item_count: usize) -> Result<BriefingAn
 pub fn validate_radar_report(json_str: &str) -> Result<RadarReport, String> {
     let cleaned = extract_json(json_str);
 
-    let report: RadarReport =
-        serde_json::from_str(&cleaned).map_err(|e| format!("RadarReport JSON parse failed: {}", e))?;
+    let report: RadarReport = parse_json_lenient(&cleaned)
+        .map_err(|e| format!("RadarReport JSON parse failed: {}", e))?;
 
     let required_lists = [
         ("at_a_glance", report.at_a_glance.len()),
@@ -516,7 +517,17 @@ pub fn validate_radar_report(json_str: &str) -> Result<RadarReport, String> {
     Ok(report)
 }
 
-fn extract_json(s: &str) -> String {
+pub(crate) fn parse_json_lenient<T: DeserializeOwned>(
+    json_str: &str,
+) -> Result<T, serde_json::Error> {
+    // serde's direct struct deserializer rejects duplicate keys. Some LLMs,
+    // especially in JSON mode, occasionally repeat a field such as `body`.
+    // Parsing through Value keeps the last key and lets us validate the final shape.
+    let value: serde_json::Value = serde_json::from_str(json_str)?;
+    serde_json::from_value(value)
+}
+
+pub(crate) fn extract_json(s: &str) -> String {
     let trimmed = s.trim();
     if let Some(start) = trimmed.find("```json") {
         let after_marker = &trimmed[start + 7..];
@@ -531,6 +542,29 @@ fn extract_json(s: &str) -> String {
         }
     }
     trimmed.to_string()
+}
+
+fn ensure_json_mode_hint(system_prompt: &str, user_message: &str) -> (String, String) {
+    const HINT: &str = "\n\nJSON mode requirement: return valid json only.";
+    let combined = format!("{}\n{}", system_prompt, user_message);
+    if combined.contains("json") {
+        (system_prompt.to_string(), user_message.to_string())
+    } else {
+        (
+            format!("{}{}", system_prompt, HINT),
+            user_message.to_string(),
+        )
+    }
+}
+
+fn provider_supports_response_format(provider: &AnalysisProvider) -> bool {
+    matches!(
+        provider,
+        AnalysisProvider::OpenAi
+            | AnalysisProvider::OpenRouter
+            | AnalysisProvider::DashScope
+            | AnalysisProvider::DeepSeek
+    )
 }
 
 // ====================================================================
@@ -563,7 +597,9 @@ impl AnalysisProvider {
             "minimax" => AnalysisProvider::MiniMax,
             "deepseek" => AnalysisProvider::DeepSeek,
             "google" => AnalysisProvider::OpenAi, // Google only uses OAuth, not API keys; this is a fallback guard
-            "custom" => AnalysisProvider::Custom { base_url: base_url.to_string() },
+            "custom" => AnalysisProvider::Custom {
+                base_url: base_url.to_string(),
+            },
             "ollama" => AnalysisProvider::Ollama {
                 base_url: if base_url.is_empty() {
                     "http://localhost:11434/v1".to_string()
@@ -710,6 +746,12 @@ pub async fn call_analysis_api(
             };
             let url = format!("{}/api/chat", host);
 
+            let (system_prompt, user_message) = if expect_json {
+                ensure_json_mode_hint(system_prompt, user_message)
+            } else {
+                (system_prompt.to_string(), user_message.to_string())
+            };
+
             let mut messages = Vec::<serde_json::Value>::new();
             if !system_prompt.is_empty() {
                 messages.push(serde_json::json!({
@@ -814,7 +856,13 @@ pub async fn call_analysis_api(
                 .map(|c| c.text.clone())
                 .unwrap_or_default())
         }
-        AnalysisProvider::OpenAi | AnalysisProvider::OpenRouter | AnalysisProvider::DashScope | AnalysisProvider::MiniMax | AnalysisProvider::DeepSeek | AnalysisProvider::Custom { .. } | AnalysisProvider::LmStudio { .. } => {
+        AnalysisProvider::OpenAi
+        | AnalysisProvider::OpenRouter
+        | AnalysisProvider::DashScope
+        | AnalysisProvider::MiniMax
+        | AnalysisProvider::DeepSeek
+        | AnalysisProvider::Custom { .. }
+        | AnalysisProvider::LmStudio { .. } => {
             let url_owned: String;
             let url: &str = match provider {
                 AnalysisProvider::OpenRouter => "https://openrouter.ai/api/v1/chat/completions",
@@ -843,16 +891,33 @@ pub async fn call_analysis_api(
                 AnalysisProvider::Custom { .. } | AnalysisProvider::LmStudio { .. }
             );
 
+            // Only providers known to support OpenAI JSON mode receive
+            // `response_format: json_object`. MiniMax/custom/LM Studio are
+            // kept on prompt-only JSON to avoid provider-specific 400s.
+            let response_format = if expect_json && provider_supports_response_format(provider) {
+                Some(ResponseFormat {
+                    format_type: "json_object".to_string(),
+                })
+            } else {
+                None
+            };
+
+            let (system_prompt, user_message) = if expect_json {
+                ensure_json_mode_hint(system_prompt, user_message)
+            } else {
+                (system_prompt.to_string(), user_message.to_string())
+            };
+
             let mut messages = Vec::new();
             if !system_prompt.is_empty() {
                 messages.push(ApiMessage {
                     role: "system".to_string(),
-                    content: system_prompt.to_string(),
+                    content: system_prompt,
                 });
             }
             messages.push(ApiMessage {
                 role: "user".to_string(),
-                content: user_message.to_string(),
+                content: user_message,
             });
 
             // Thinking models (qwen3, qwen3.5, deepseek-r1) burn large chunks of the
@@ -863,22 +928,6 @@ pub async fn call_analysis_api(
                 max_tokens.max(8192)
             } else {
                 max_tokens
-            };
-
-            // Force `response_format: json_object` whenever we can.
-            // Without it, models — especially those served via commercial
-            // relays — happily reply with plain conversational prose
-            // ("根据你的反馈...") that breaks downstream JSON parsing.
-            //
-            // Local providers (Ollama, LM Studio) are the exception:
-            // their OpenAI-compatible shims sometimes deadlock or 400
-            // on this flag, particularly with thinking-model variants.
-            // We keep them on the markdown-aware parser fallback.
-            let response_format = match provider {
-                AnalysisProvider::LmStudio { .. } => None,
-                _ => Some(ResponseFormat {
-                    format_type: "json_object".to_string(),
-                }),
             };
 
             let enable_thinking = match provider {
@@ -924,8 +973,8 @@ pub async fn call_analysis_api(
                 return Err(format!("API error ({}): {}", status, text));
             }
 
-            let parsed: OpenAiResponse =
-                serde_json::from_str(&text).map_err(|e| format!("Failed to parse API response: {}", e))?;
+            let parsed: OpenAiResponse = serde_json::from_str(&text)
+                .map_err(|e| format!("Failed to parse API response: {}", e))?;
 
             Ok(parsed
                 .choices
@@ -952,6 +1001,8 @@ pub async fn call_dashscope_streaming(
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+
+    let (system_prompt, user_message) = ensure_json_mode_hint(system_prompt, user_message);
 
     let mut messages = Vec::new();
     if !system_prompt.is_empty() {
@@ -1069,21 +1120,39 @@ pub async fn try_codex_call(
         .unwrap_or_else(|| "auto".to_string());
 
     let model = if saved_model == "auto" {
-        if is_deep { "gpt-5.4" } else { "gpt-5.4-mini" }
+        if is_deep {
+            "gpt-5.4"
+        } else {
+            "gpt-5.4-mini"
+        }
     } else {
         &saved_model
     };
 
     let result = crate::ai::codex_api::call_codex_api(
-        &access_token, &account_id, model, system_prompt, user_message, temperature,
-    ).await;
+        &access_token,
+        &account_id,
+        model,
+        system_prompt,
+        user_message,
+        temperature,
+    )
+    .await;
 
     // Auto fallback for deep tasks: gpt-5.4 → gpt-5.3-codex
     if saved_model == "auto" && is_deep && result.is_err() {
         log::warn!("Auto: {} failed, falling back to gpt-5.3-codex", model);
-        return Some(crate::ai::codex_api::call_codex_api(
-            &access_token, &account_id, "gpt-5.3-codex", system_prompt, user_message, temperature,
-        ).await);
+        return Some(
+            crate::ai::codex_api::call_codex_api(
+                &access_token,
+                &account_id,
+                "gpt-5.3-codex",
+                system_prompt,
+                user_message,
+                temperature,
+            )
+            .await,
+        );
     }
 
     Some(result)
@@ -1100,25 +1169,49 @@ pub async fn try_gemini_call(
 ) -> Option<Result<String, String>> {
     let (access_token, project_id) = crate::ai::gemini_oauth::get_valid_token(db.clone()).await?;
     let repo = crate::storage::repository::Repository::new(db);
-    let saved_model = repo.get_setting("ai_model").ok().flatten()
+    let saved_model = repo
+        .get_setting("ai_model")
+        .ok()
+        .flatten()
         .unwrap_or_else(|| "auto".to_string());
 
     let model = if saved_model == "auto" {
-        if is_deep { "claude-opus-4-6-thinking" } else { "gemini-3-flash" }
+        if is_deep {
+            "claude-opus-4-6-thinking"
+        } else {
+            "gemini-3-flash"
+        }
     } else {
         &saved_model
     };
 
     let result = crate::ai::gemini_api::call_gemini_api(
-        &access_token, &project_id, model, system_prompt, user_message, temperature,
-    ).await;
+        &access_token,
+        &project_id,
+        model,
+        system_prompt,
+        user_message,
+        temperature,
+    )
+    .await;
 
     // Auto fallback for deep tasks: claude-opus-4-6-thinking → gemini-3.1-pro-high
     if saved_model == "auto" && is_deep && result.is_err() {
-        log::warn!("Auto: {} failed, falling back to gemini-3.1-pro-high", model);
-        return Some(crate::ai::gemini_api::call_gemini_api(
-            &access_token, &project_id, "gemini-3.1-pro-high", system_prompt, user_message, temperature,
-        ).await);
+        log::warn!(
+            "Auto: {} failed, falling back to gemini-3.1-pro-high",
+            model
+        );
+        return Some(
+            crate::ai::gemini_api::call_gemini_api(
+                &access_token,
+                &project_id,
+                "gemini-3.1-pro-high",
+                system_prompt,
+                user_message,
+                temperature,
+            )
+            .await,
+        );
     }
 
     Some(result)
@@ -1386,6 +1479,72 @@ mod tests {
         }"#;
         let result = validate_radar_report(json);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_radar_report_allows_duplicate_body_field() {
+        let json = r#"{
+          "meta": {"date_range": "2026-03-21 至 2026-04-05", "total_items": 1, "active_days": 1, "annotated_items": 1, "annotation_rate": "100%", "source_count": 1},
+          "at_a_glance": [{"text": "洞察", "highlight": "重点"}],
+          "info_diet": {
+            "sources": [{"name": "WeChat", "count": 1, "percent": 100.0, "color": "wechat"}],
+            "depth_ratio": {"deep": 100.0, "shallow": 0.0, "label": "深度长文 100% / 碎片 0%"},
+            "dominant_topic": {"name": "AI工具链", "percent": 100.0, "label": "重度偏食"},
+            "alert": "提醒"
+          },
+          "subconscious": [{"title": "标题", "body": "旧说明", "body": "新说明", "evidence_count": 1}],
+          "graveyard": {"alert": "提醒", "top_picks": [{"rank": 1, "title": "重读", "reason": "原因", "tags": ["AI"]}]},
+          "blind_spots": [{"title": "盲区", "body": "说明"}],
+          "actions": [{"icon": "🔧", "title": "行动", "desc": "描述", "ref": "关联内容", "time": "15分钟"}],
+          "heatmap": [{"date": "03/21", "count": 1, "is_peak": true}],
+          "topic_cloud": [{"name": "AI工具链", "percent": 100.0}],
+          "verdict": {"text": "总结", "highlights": ["重点"]},
+          "footer": {"date_range": "03-21~03-21", "total": 1, "active_days": 1, "total_days": 1}
+        }"#;
+
+        let report = validate_radar_report(json).unwrap();
+        assert_eq!(report.subconscious[0].body, "新说明");
+    }
+
+    #[test]
+    fn test_ensure_json_mode_hint_adds_lowercase_json() {
+        let (system, user) = ensure_json_mode_hint("请严格返回结构化对象", "用户内容");
+        assert!(system.contains("json"));
+        assert_eq!(user, "用户内容");
+    }
+
+    #[test]
+    fn test_ensure_json_mode_hint_keeps_existing_lowercase_json() {
+        let (system, user) = ensure_json_mode_hint("Return valid json.", "用户内容");
+        assert_eq!(system, "Return valid json.");
+        assert_eq!(user, "用户内容");
+    }
+
+    #[test]
+    fn test_provider_response_format_support_matrix() {
+        assert!(provider_supports_response_format(&AnalysisProvider::OpenAi));
+        assert!(provider_supports_response_format(
+            &AnalysisProvider::OpenRouter
+        ));
+        assert!(provider_supports_response_format(
+            &AnalysisProvider::DashScope
+        ));
+        assert!(provider_supports_response_format(
+            &AnalysisProvider::DeepSeek
+        ));
+        assert!(!provider_supports_response_format(
+            &AnalysisProvider::MiniMax
+        ));
+        assert!(!provider_supports_response_format(
+            &AnalysisProvider::Custom {
+                base_url: "http://localhost:3000/v1".to_string(),
+            }
+        ));
+        assert!(!provider_supports_response_format(
+            &AnalysisProvider::LmStudio {
+                base_url: "http://localhost:1234/v1".to_string(),
+            }
+        ));
     }
 
     #[test]
