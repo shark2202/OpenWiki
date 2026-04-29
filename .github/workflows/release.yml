@@ -48,6 +48,43 @@ jobs:
       - name: Prepare bundled document converter
         run: ./src-tauri/scripts/setup_markitdown.sh
 
+      - name: Import code signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      # Bundled helper binaries (OCR Swift helper + MarkItDown converter)
+      # must be signed with hardened runtime + secure timestamp BEFORE the
+      # main app is bundled, otherwise notarization rejects the .app for
+      # containing unsigned executables.
+      - name: Compile and sign bundled helper binaries
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -e
+          # Pre-compile the OCR Swift helper (build.rs would do this inside
+          # tauri-action, but we need it signed before bundling).
+          /usr/bin/swiftc -O \
+            src-tauri/resources/openwiki_ocr.swift \
+            -o src-tauri/resources/openwiki_ocr_bin
+
+          ENT=src-tauri/entitlements.plist
+          for binary in \
+            src-tauri/resources/openwiki_ocr_bin \
+            src-tauri/resources/markitdown/bin/openwiki-markitdown; do
+            if [ -f "$binary" ]; then
+              echo "Signing $binary"
+              codesign --force --options=runtime --timestamp \
+                --sign "$APPLE_SIGNING_IDENTITY" \
+                --entitlements "$ENT" \
+                "$binary"
+              codesign --verify --verbose=2 "$binary"
+            else
+              echo "Helper binary not found at $binary — skipping"
+            fi
+          done
+
       # Read per-version release notes from release-notes/<tag>.md.
       # Claude maintains this file (see release-notes/README.md); if it's
       # missing we fall back to a minimal generic body so the release still
