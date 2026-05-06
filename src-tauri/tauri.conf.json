@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OpenWiki",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "identifier": "com.openwiki.app",
   "build": {
     "frontendDist": "../dist",
@@ -78,7 +78,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJDQTBFQkEyOEFGQUMzREMKUldUY3cvcUtvdXVndkgwVmx1K2Z6S0lmOFpJcEpjcFlBWDNXSkZnWnZLbTc2c1F2K2JrWXZpcE8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5NDg2NzA3NTQxODQ1MTcKUldRWFJSaFVCMmRJbVNhcG8wRXBxdXVuMkdhSjE5L0g5ajg5YmpOYmFsVWNoOHNoeVBxejlORFAK",
       "endpoints": [
         "https://github.com/kdsz001/OpenWiki/releases/latest/download/latest.json"
       ]
