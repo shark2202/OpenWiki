@@ -1,13 +1,11 @@
 //! In-app update notifier.
 //!
-//! Polls the GitHub Releases API on startup (and on demand) to detect when a
+//! Polls the Tauri updater manifest on startup (and on demand) to detect when a
 //! newer version of OpenWiki is available. When one is found, we emit an
 //! `update-available` Tauri event that the frontend renders as a banner.
 //!
-//! This is intentionally a *notification only* feature. The user still
-//! downloads and installs the new DMG manually — we just surface the fact
-//! that one exists and deep-link into the GitHub release page. If we ever
-//! upgrade to real auto-updates we'll switch to `tauri-plugin-updater`.
+//! The actual package download still goes through `tauri-plugin-updater`; this
+//! module only decides when to notify the frontend.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,7 +18,8 @@ use crate::storage::database::Database;
 use crate::storage::repository::Repository;
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const GITHUB_API_URL: &str = "https://api.github.com/repos/kdsz001/OpenWiki/releases/latest";
+const UPDATE_MANIFEST_URL: &str =
+    "https://github.com/kdsz001/OpenWiki/releases/latest/download/latest.json";
 const RELEASES_PAGE_URL: &str = "https://github.com/kdsz001/OpenWiki/releases";
 
 const SETTING_CHECK_ENABLED: &str = "update.check_enabled";
@@ -29,15 +28,23 @@ const SETTING_DISMISSED_VERSION: &str = "update.dismissed_version";
 const REQUEST_TIMEOUT_SECS: u64 = 10;
 const STARTUP_DELAY_SECS: u64 = 3;
 
-/// Raw shape of the GitHub `/releases/latest` response — only the fields we need.
+/// Raw shape of Tauri's `latest.json` updater manifest.
 #[derive(Debug, Deserialize)]
-struct GithubRelease {
+struct UpdateManifest {
+    version: String,
+    #[serde(default)]
+    notes: String,
+    #[serde(default)]
+    pub_date: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GithubReleaseFallback {
     tag_name: String,
     #[serde(default)]
     name: String,
     #[serde(default)]
     body: String,
-    html_url: String,
     #[serde(default)]
     published_at: String,
 }
@@ -86,7 +93,7 @@ pub fn spawn_background_check(app: AppHandle, db: Arc<Database>) {
             return;
         }
 
-        let release = match fetch_latest_release().await {
+        let manifest = match fetch_update_manifest().await {
             Ok(r) => r,
             Err(e) => {
                 log::warn!("[update] fetch failed: {}", e);
@@ -94,7 +101,7 @@ pub fn spawn_background_check(app: AppHandle, db: Arc<Database>) {
             }
         };
 
-        let info = match build_update_info(&release) {
+        let info = match build_update_info(&manifest) {
             Some(info) => info,
             None => return, // already up to date or unparseable tag
         };
@@ -128,8 +135,10 @@ pub fn spawn_background_check(app: AppHandle, db: Arc<Database>) {
 pub async fn check_for_update_manual(
     _state: State<'_, AppState>,
 ) -> Result<Option<UpdateInfo>, String> {
-    let release = fetch_latest_release().await.map_err(|e| format!("{}", e))?;
-    Ok(build_update_info(&release))
+    let manifest = fetch_update_manifest()
+        .await
+        .map_err(|e| format!("{}", e))?;
+    Ok(build_update_info(&manifest))
 }
 
 /// Toggle the auto-check feature from the Settings page.
@@ -173,7 +182,7 @@ fn read_dismissed_version(db: &Arc<Database>) -> Option<String> {
     repo.get_setting(SETTING_DISMISSED_VERSION).ok().flatten()
 }
 
-async fn fetch_latest_release() -> Result<GithubRelease, String> {
+async fn fetch_update_manifest() -> Result<UpdateManifest, String> {
     let user_agent = format!(
         "OpenWiki/{} (+https://github.com/kdsz001/OpenWiki)",
         CURRENT_VERSION
@@ -186,44 +195,75 @@ async fn fetch_latest_release() -> Result<GithubRelease, String> {
         .map_err(|e| format!("build client: {}", e))?;
 
     let resp = client
-        .get(GITHUB_API_URL)
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
+        .get(UPDATE_MANIFEST_URL)
+        .header("Accept", "application/json, text/plain, */*")
         .send()
         .await
         .map_err(|e| format!("request failed: {}", e))?;
 
     if !resp.status().is_success() {
-        return Err(format!("GitHub returned HTTP {}", resp.status()));
+        log::warn!(
+            "[update] manifest returned HTTP {}, trying GitHub API fallback",
+            resp.status()
+        );
+        return fetch_github_release_fallback(&client).await;
     }
 
-    resp.json::<GithubRelease>()
+    resp.json::<UpdateManifest>()
         .await
         .map_err(|e| format!("parse json: {}", e))
 }
 
-/// Compare the release against the current build. Returns `Some(UpdateInfo)`
-/// only if `release.tag_name` parses as a version that's strictly newer than
+async fn fetch_github_release_fallback(client: &reqwest::Client) -> Result<UpdateManifest, String> {
+    let resp = client
+        .get("https://api.github.com/repos/kdsz001/OpenWiki/releases/latest")
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| format!("fallback request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("GitHub returned HTTP {}", resp.status()));
+    }
+
+    let release = resp
+        .json::<GithubReleaseFallback>()
+        .await
+        .map_err(|e| format!("parse fallback json: {}", e))?;
+    let version = strip_version_prefix(&release.tag_name);
+    let notes = if release.body.is_empty() {
+        release.name
+    } else {
+        release.body
+    };
+
+    Ok(UpdateManifest {
+        version,
+        notes,
+        pub_date: release.published_at,
+    })
+}
+
+/// Compare the manifest against the current build. Returns `Some(UpdateInfo)`
+/// only if `manifest.version` parses as a version that's strictly newer than
 /// `CARGO_PKG_VERSION`. Returns `None` otherwise (up to date / unparseable).
-fn build_update_info(release: &GithubRelease) -> Option<UpdateInfo> {
-    let latest = strip_version_prefix(&release.tag_name);
+fn build_update_info(manifest: &UpdateManifest) -> Option<UpdateInfo> {
+    let latest = strip_version_prefix(&manifest.version);
     if !is_newer(&latest, CURRENT_VERSION) {
         return None;
     }
 
-    let display_name = if release.name.is_empty() {
-        release.tag_name.clone()
-    } else {
-        release.name.clone()
-    };
-
     Some(UpdateInfo {
-        version: latest,
+        version: latest.clone(),
         current_version: CURRENT_VERSION.to_string(),
-        name: display_name,
-        body: release.body.clone(),
-        url: release.html_url.clone(),
-        published_at: release.published_at.clone(),
+        name: format!("OpenWiki v{}", latest),
+        body: manifest.notes.clone(),
+        url: format!(
+            "https://github.com/kdsz001/OpenWiki/releases/tag/v{}",
+            latest
+        ),
+        published_at: manifest.pub_date.clone(),
     })
 }
 
@@ -346,5 +386,23 @@ mod tests {
     #[test]
     fn newer_rejects_unparseable_latest() {
         assert!(!is_newer("nightly", "0.1.2"));
+    }
+
+    #[test]
+    fn builds_update_info_from_manifest() {
+        let manifest = UpdateManifest {
+            version: "99.0.0".to_string(),
+            notes: "测试更新说明".to_string(),
+            pub_date: "2026-05-13T08:01:56Z".to_string(),
+        };
+
+        let info = build_update_info(&manifest).expect("manifest should be newer");
+        assert_eq!(info.version, "99.0.0");
+        assert_eq!(info.name, "OpenWiki v99.0.0");
+        assert_eq!(info.body, "测试更新说明");
+        assert_eq!(
+            info.url,
+            "https://github.com/kdsz001/OpenWiki/releases/tag/v99.0.0"
+        );
     }
 }
