@@ -39,6 +39,24 @@ fn resolve_ocr_binary() -> Result<PathBuf, String> {
         }
     }
 
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        let candidate = PathBuf::from(manifest_dir).join("resources/openwiki_ocr_bin");
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        for candidate in [
+            current_dir.join("resources/openwiki_ocr_bin"),
+            current_dir.join("src-tauri/resources/openwiki_ocr_bin"),
+        ] {
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
     Err("OCR helper binary not found — the app bundle may be corrupted.".to_string())
 }
 

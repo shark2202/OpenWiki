@@ -196,9 +196,7 @@ impl Database {
 
         // Migration 008: Add wiki tables
         let has_wiki_pages: bool = conn
-            .prepare(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages'",
-            )?
+            .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages'")?
             .query_row([], |row| row.get::<_, i32>(0))
             .map(|count| count > 0)
             .unwrap_or(false);
@@ -305,7 +303,9 @@ impl Database {
                 )?;
             }
             let has_wiki: bool = conn
-                .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages'")
+                .prepare(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages'",
+                )
                 .and_then(|mut s| s.query_row([], |row| row.get::<_, i32>(0)))
                 .map(|c| c > 0)
                 .unwrap_or(false);
@@ -323,7 +323,9 @@ impl Database {
         // continue in degraded mode. The repository layer will detect the
         // missing table and fall back to LIKE-based search.
         let has_wiki_fts: bool = conn
-            .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages_fts'")?
+            .prepare(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='wiki_pages_fts'",
+            )?
             .query_row([], |row| row.get::<_, i32>(0))
             .map(|c| c > 0)
             .unwrap_or(false);

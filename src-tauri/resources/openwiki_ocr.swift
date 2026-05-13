@@ -1,6 +1,9 @@
 import Vision
 import Foundation
 import CoreGraphics
+import ImageIO
+import PDFKit
+import AppKit
 
 let args = CommandLine.arguments
 guard args.count > 1 else {
@@ -9,12 +12,6 @@ guard args.count > 1 else {
 }
 let imagePath = args[1]
 let imageURL = URL(fileURLWithPath: imagePath)
-
-guard let imageSource = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
-      let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-    fputs("Cannot load image: \(imagePath)\n", stderr)
-    exit(1)
-}
 
 /// OCR a single CGImage tile and return recognized lines
 func ocrTile(_ tile: CGImage) -> [String] {
@@ -42,18 +39,17 @@ func ocrTile(_ tile: CGImage) -> [String] {
     return lines
 }
 
-let width = cgImage.width
-let height = cgImage.height
-let maxTileHeight = 2000  // Split images taller than 2000px into tiles
+func ocrImage(_ cgImage: CGImage) -> [String] {
+    let width = cgImage.width
+    let height = cgImage.height
+    let maxTileHeight = 2000  // Split images taller than 2000px into tiles
 
-var allLines: [String] = []
+    if height <= maxTileHeight {
+        return ocrTile(cgImage)
+    }
 
-if height <= maxTileHeight {
-    // Small image: OCR directly
-    allLines = ocrTile(cgImage)
-} else {
-    // Long image: split into overlapping tiles for better accuracy
-    let overlap = 100  // Overlap to avoid cutting text at boundaries
+    var allLines: [String] = []
+    let overlap = 100  // Avoid cutting text at tile boundaries
     var y = 0
     while y < height {
         let tileH = min(maxTileHeight, height - y)
@@ -78,6 +74,49 @@ if height <= maxTileHeight {
         y += tileH - overlap
         if tileH < maxTileHeight { break }
     }
+    return allLines
+}
+
+func renderPdfPage(_ page: PDFPage, scale: CGFloat) -> CGImage? {
+    let bounds = page.bounds(for: .mediaBox)
+    let size = CGSize(
+        width: max(1, bounds.width * scale),
+        height: max(1, bounds.height * scale)
+    )
+    let thumbnail = page.thumbnail(of: size, for: .mediaBox)
+    var rect = CGRect(origin: .zero, size: thumbnail.size)
+    return thumbnail.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+}
+
+var allLines: [String] = []
+let ext = imageURL.pathExtension.lowercased()
+
+if ext == "pdf" {
+    guard let document = PDFDocument(url: imageURL), document.pageCount > 0 else {
+        fputs("Cannot load PDF: \(imagePath)\n", stderr)
+        exit(1)
+    }
+
+    for pageIndex in 0..<document.pageCount {
+        guard let page = document.page(at: pageIndex),
+              let pageImage = renderPdfPage(page, scale: 2.0) else {
+            continue
+        }
+        let pageLines = ocrImage(pageImage)
+        if !pageLines.isEmpty {
+            if !allLines.isEmpty {
+                allLines.append("")
+            }
+            allLines.append(contentsOf: pageLines)
+        }
+    }
+} else {
+    guard let imageSource = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
+          let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+        fputs("Cannot load image: \(imagePath)\n", stderr)
+        exit(1)
+    }
+    allLines = ocrImage(cgImage)
 }
 
 let resultText = allLines.joined(separator: "\n")

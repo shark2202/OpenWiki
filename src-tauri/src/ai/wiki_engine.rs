@@ -5,7 +5,6 @@
 /// - compile: incrementally build wiki pages from content
 /// - query: answer questions based on compiled wiki
 /// - lint: health-check the wiki
-
 use crate::storage::database::Database;
 use crate::storage::models::{CapturedContent, WikiPage};
 use crate::storage::repository::Repository;
@@ -20,7 +19,9 @@ pub fn compute_content_hash(content: &CapturedContent) -> String {
 
     let mut hasher = DefaultHasher::new();
     // Prefer clean_content for hash computation — ensures re-compilation when cleaned
-    let text = content.clean_content.as_deref()
+    let text = content
+        .clean_content
+        .as_deref()
         .or(content.raw_text.as_deref())
         .unwrap_or("");
     text.hash(&mut hasher);
@@ -28,7 +29,11 @@ pub fn compute_content_hash(content: &CapturedContent) -> String {
     content.tags.as_deref().unwrap_or("").hash(&mut hasher);
     content.digest.as_deref().unwrap_or("").hash(&mut hasher);
     content.user_note.as_deref().unwrap_or("").hash(&mut hasher);
-    content.source_url.as_deref().unwrap_or("").hash(&mut hasher);
+    content
+        .source_url
+        .as_deref()
+        .unwrap_or("")
+        .hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
@@ -114,7 +119,8 @@ async fn call_ai(
     }
 
     // API key path
-    let is_local_or_custom = provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
+    let is_local_or_custom =
+        provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
     let provider_key = format!("ai_api_key_{}", provider_str);
     let api_key = repo
         .get_setting(&provider_key)
@@ -253,7 +259,11 @@ pub async fn assess_content(
     let system = wiki_prompts::assessment_system_prompt(&locale);
     let user = wiki_prompts::assessment_user_message(
         content.content_type.as_str(),
-        content.clean_content.as_deref().or(content.raw_text.as_deref()).unwrap_or(""),
+        content
+            .clean_content
+            .as_deref()
+            .or(content.raw_text.as_deref())
+            .unwrap_or(""),
         content.summary.as_deref().unwrap_or(""),
         content.user_note.as_deref().unwrap_or(""),
         content.source_url.as_deref().unwrap_or(""),
@@ -289,7 +299,11 @@ pub async fn compile_content(
 ) -> Result<Vec<String>, String> {
     let repo = Repository::new(db.clone());
     let current_hash = compute_content_hash(content);
-    let content_text = content.clean_content.as_deref().or(content.raw_text.as_deref()).unwrap_or("");
+    let content_text = content
+        .clean_content
+        .as_deref()
+        .or(content.raw_text.as_deref())
+        .unwrap_or("");
     let content_summary = content.summary.as_deref().unwrap_or("");
     let content_tags = content.tags.as_deref().unwrap_or("");
     let user_note = content.user_note.as_deref().unwrap_or("");
@@ -350,7 +364,10 @@ pub async fn compile_content(
         .unwrap_or_default();
 
     if creates.is_empty() && updates.is_empty() {
-        log::info!("Wiki compile: no pages to create or update for {}", content.id);
+        log::info!(
+            "Wiki compile: no pages to create or update for {}",
+            content.id
+        );
         return Ok(vec![]);
     }
 
@@ -402,7 +419,11 @@ pub async fn compile_content(
             .unwrap_or(page_type);
 
         // Ensure slug is unique
-        let final_slug = if repo.get_wiki_page_by_slug(&slug).map_err(|e| e.to_string())?.is_some() {
+        let final_slug = if repo
+            .get_wiki_page_by_slug(&slug)
+            .map_err(|e| e.to_string())?
+            .is_some()
+        {
             format!("{}-{}", slug, &page_id[..8])
         } else {
             slug
@@ -423,7 +444,8 @@ pub async fn compile_content(
             last_compiled_at: Some(now.clone()),
             source_message_id: None,
         };
-        repo.save_wiki_page(&page).map_err(|e| format!("Failed to save page: {}", e))?;
+        repo.save_wiki_page(&page)
+            .map_err(|e| format!("Failed to save page: {}", e))?;
         repo.add_page_source(&page_id, &content.id, &current_hash)
             .map_err(|e| format!("Failed to save source relation: {}", e))?;
 
@@ -448,18 +470,32 @@ pub async fn compile_content(
             continue;
         }
 
-        let existing_page = match repo.get_wiki_page_by_id(page_id).map_err(|e| e.to_string())? {
+        let existing_page = match repo
+            .get_wiki_page_by_id(page_id)
+            .map_err(|e| e.to_string())?
+        {
             Some(p) => p,
             None => {
-                log::warn!("Wiki compile: page {} not found for update, skipping", page_id);
+                log::warn!(
+                    "Wiki compile: page {} not found for update, skipping",
+                    page_id
+                );
                 continue;
             }
         };
 
         // Get source stats for this page
-        let sources = repo.get_sources_for_page(page_id).map_err(|e| e.to_string())?;
-        let active_count = sources.iter().filter(|s| s.source_status == "active").count();
-        let stale_count = sources.iter().filter(|s| s.source_status == "stale").count();
+        let sources = repo
+            .get_sources_for_page(page_id)
+            .map_err(|e| e.to_string())?;
+        let active_count = sources
+            .iter()
+            .filter(|s| s.source_status == "active")
+            .count();
+        let stale_count = sources
+            .iter()
+            .filter(|s| s.source_status == "stale")
+            .count();
 
         let execute_user = wiki_prompts::compile_execute_update_message(
             content_text,
@@ -555,7 +591,10 @@ pub async fn auto_compile(db: Arc<Database>, content_id: &str) -> Result<(), Str
 
     log::info!(
         "Wiki assess {}: score={:.2}, should={}, reason={}",
-        content_id, score, should_compile, reason
+        content_id,
+        score,
+        should_compile,
+        reason
     );
 
     if !should_compile || score < 0.5 {
@@ -570,13 +609,8 @@ pub async fn auto_compile(db: Arc<Database>, content_id: &str) -> Result<(), Str
         Ok(touched_ids) => {
             let pages_json = serde_json::to_string(&touched_ids).unwrap_or_default();
             let _ = repo.update_content_compile_hash(content_id, &current_hash);
-            let _ = repo.release_compile_lock(
-                content_id,
-                "completed",
-                Some(&pages_json),
-                None,
-                None,
-            );
+            let _ =
+                repo.release_compile_lock(content_id, "completed", Some(&pages_json), None, None);
             log::info!(
                 "Wiki compile done for {}: {} pages touched",
                 content_id,
@@ -615,13 +649,8 @@ pub async fn manual_compile(db: Arc<Database>, content_id: &str) -> Result<Vec<S
         Ok(touched_ids) => {
             let pages_json = serde_json::to_string(&touched_ids).unwrap_or_default();
             let _ = repo.update_content_compile_hash(content_id, &current_hash);
-            let _ = repo.release_compile_lock(
-                content_id,
-                "completed",
-                Some(&pages_json),
-                None,
-                None,
-            );
+            let _ =
+                repo.release_compile_lock(content_id, "completed", Some(&pages_json), None, None);
             Ok(touched_ids)
         }
         Err(e) => {
@@ -632,10 +661,7 @@ pub async fn manual_compile(db: Arc<Database>, content_id: &str) -> Result<Vec<S
 }
 
 /// Handle content deletion: update source status and page confidence.
-pub fn on_content_deleted(
-    db: Arc<Database>,
-    content_id: &str,
-) -> Result<(), String> {
+pub fn on_content_deleted(db: Arc<Database>, content_id: &str) -> Result<(), String> {
     let repo = Repository::new(db);
 
     // Mark all sources from this content as deleted
@@ -806,8 +832,7 @@ pub fn link_pages_by_shared_tags(db: Arc<Database>) -> Result<usize, String> {
     // then keep the TOP_K most similar. The resulting edges from both
     // sides are merged through a canonical (min_idx, max_idx) tuple
     // so each unordered pair is inserted exactly once.
-    let mut selected: std::collections::HashSet<(usize, usize)> =
-        std::collections::HashSet::new();
+    let mut selected: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
     let mut edge_weight: HashMap<(usize, usize), f64> = HashMap::new();
 
     for i in 0..n {
@@ -835,9 +860,7 @@ pub fn link_pages_by_shared_tags(db: Arc<Database>) -> Result<usize, String> {
             }
         }
         // Keep top-K most similar
-        neighbors.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        neighbors.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         neighbors.truncate(TOP_K);
 
         for (j, sim) in neighbors {
@@ -918,7 +941,8 @@ mod tests {
     #[test]
     fn parses_json_after_chinese_preamble() {
         // The exact failure mode we saw with the user's relay
-        let raw = "根据你的反馈，那个不是你要找的。让我返回 JSON：\n{\"page_ids\": [\"abc\", \"def\"]}";
+        let raw =
+            "根据你的反馈，那个不是你要找的。让我返回 JSON：\n{\"page_ids\": [\"abc\", \"def\"]}";
         let v = parse_ai_json(raw).unwrap();
         assert_eq!(v["page_ids"][0], "abc");
         assert_eq!(v["page_ids"][1], "def");

@@ -181,10 +181,7 @@ pub fn run() {
             // surfaces to the user.
             {
                 let state: tauri::State<'_, AppState> = app.state();
-                crate::update::spawn_background_check(
-                    app.handle().clone(),
-                    state.db.clone(),
-                );
+                crate::update::spawn_background_check(app.handle().clone(), state.db.clone());
             }
 
             // --- Automation (Apple Events) permission guard ---
@@ -194,10 +191,7 @@ pub fn run() {
             // can surface a fix-it button.
             {
                 let state: tauri::State<'_, AppState> = app.state();
-                crate::automation::spawn_startup_check(
-                    app.handle().clone(),
-                    state.db.clone(),
-                );
+                crate::automation::spawn_startup_check(app.handle().clone(), state.db.clone());
             }
 
             Ok(())

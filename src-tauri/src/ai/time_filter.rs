@@ -133,8 +133,12 @@ pub fn detect_time_range(query: &str, now: DateTime<Utc>) -> Option<TimeRange> {
     }
 
     // ---- Loose "最近" / "近来" / "前阵子" / "recently" → default last 7 days ----
-    if q.contains("最近") || q.contains("近来") || q.contains("前阵子")
-        || q.contains("这几天") || q.contains("recently") || q.contains("recent")
+    if q.contains("最近")
+        || q.contains("近来")
+        || q.contains("前阵子")
+        || q.contains("这几天")
+        || q.contains("recently")
+        || q.contains("recent")
     {
         let start_day = today - Duration::days(6);
         return Some(TimeRange {
@@ -171,12 +175,12 @@ fn parse_recent_n(q: &str, now: DateTime<Utc>, today: NaiveDate) -> Option<TimeR
             let tail: String = chars[i..].iter().take(8).collect();
             let unit_days: Option<i64> = if tail.starts_with('天') || tail.starts_with("day") {
                 Some(num)
-            } else if tail.starts_with('周')
-                || tail.starts_with("星期")
-                || tail.starts_with("week")
+            } else if tail.starts_with('周') || tail.starts_with("星期") || tail.starts_with("week")
             {
                 Some(num * 7)
-            } else if tail.starts_with("个月") || tail.starts_with('月') || tail.starts_with("month")
+            } else if tail.starts_with("个月")
+                || tail.starts_with('月')
+                || tail.starts_with("month")
             {
                 Some(num * 30)
             } else {
@@ -184,8 +188,12 @@ fn parse_recent_n(q: &str, now: DateTime<Utc>, today: NaiveDate) -> Option<TimeR
             };
             if let Some(days) = unit_days {
                 // Only treat as "recent N" if a recency word appears in the query.
-                if q.contains("最近") || q.contains("近") || q.contains("过去")
-                    || q.contains("past") || q.contains("last") || q.contains("recent")
+                if q.contains("最近")
+                    || q.contains("近")
+                    || q.contains("过去")
+                    || q.contains("past")
+                    || q.contains("last")
+                    || q.contains("recent")
                 {
                     let start_day = today - Duration::days(days - 1);
                     let _ = now;

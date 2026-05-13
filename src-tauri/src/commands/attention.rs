@@ -33,7 +33,9 @@ pub fn get_attention_insights(state: State<'_, AppState>) -> Result<RadarStatus,
     // OpenAI and Google can use OAuth instead of an API key;
     // Ollama and custom local providers don't need one at all.
     let oauth_provider = provider_str_check == "openai" || provider_str_check == "google";
-    let is_local_or_custom = provider_str_check == "ollama" || provider_str_check == "custom" || provider_str_check == "lmstudio";
+    let is_local_or_custom = provider_str_check == "ollama"
+        || provider_str_check == "custom"
+        || provider_str_check == "lmstudio";
     if api_key.is_empty() && !oauth_provider && !is_local_or_custom {
         return Ok(RadarStatus {
             status: "no_api_key".to_string(),
@@ -181,8 +183,13 @@ pub async fn trigger_attention_analysis(
         .unwrap_or_default();
 
     // Allow OpenAI/Google/custom/ollama providers to proceed without an API key
-    let is_local_or_custom = provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
-    if api_key.is_empty() && provider_str != "openai" && provider_str != "google" && !is_local_or_custom {
+    let is_local_or_custom =
+        provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
+    if api_key.is_empty()
+        && provider_str != "openai"
+        && provider_str != "google"
+        && !is_local_or_custom
+    {
         return Err("Please configure an AI API Key in settings first".to_string());
     }
 
@@ -191,7 +198,11 @@ pub async fn trigger_attention_analysis(
         .map_err(|e| format!("Failed to read AI model: {}", e))?
         .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
 
-    let base_url = repo.get_setting("ai_custom_base_url").ok().flatten().unwrap_or_default();
+    let base_url = repo
+        .get_setting("ai_custom_base_url")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
 
     // 3. Get content for analysis (15 days, max 100)
     let items = repo
@@ -248,8 +259,7 @@ pub async fn trigger_attention_analysis(
                         let _ = app.emit("attention-analysis-progress", "generating");
                         match attention_analyzer::validate_radar_report(&raw_response) {
                             Ok(report) => {
-                                let json_str =
-                                    serde_json::to_string(&report).unwrap_or_default();
+                                let json_str = serde_json::to_string(&report).unwrap_or_default();
                                 if let Err(e) = repo.update_insight_status(
                                     insight_id,
                                     "complete",
@@ -274,9 +284,8 @@ pub async fn trigger_attention_analysis(
                             }
                             Err(e) => {
                                 log::error!("Insight report validation failed: {}", e);
-                                let _ = repo.update_insight_status(
-                                    insight_id, "error", None, Some(&e),
-                                );
+                                let _ =
+                                    repo.update_insight_status(insight_id, "error", None, Some(&e));
                                 let _ = app.emit("attention-analysis-complete", "error");
                             }
                         }
@@ -307,8 +316,7 @@ pub async fn trigger_attention_analysis(
                         let _ = app.emit("attention-analysis-progress", "generating");
                         match attention_analyzer::validate_radar_report(&raw_response) {
                             Ok(report) => {
-                                let json_str =
-                                    serde_json::to_string(&report).unwrap_or_default();
+                                let json_str = serde_json::to_string(&report).unwrap_or_default();
                                 if let Err(e) = repo.update_insight_status(
                                     insight_id,
                                     "complete",
@@ -333,16 +341,18 @@ pub async fn trigger_attention_analysis(
                             }
                             Err(e) => {
                                 log::error!("Insight report validation failed: {}", e);
-                                let _ = repo.update_insight_status(
-                                    insight_id, "error", None, Some(&e),
-                                );
+                                let _ =
+                                    repo.update_insight_status(insight_id, "error", None, Some(&e));
                                 let _ = app.emit("attention-analysis-complete", "error");
                             }
                         }
                         return;
                     }
                     Err(e) => {
-                        log::warn!("Gemini OAuth insight analysis failed, falling back to API Key: {}", e);
+                        log::warn!(
+                            "Gemini OAuth insight analysis failed, falling back to API Key: {}",
+                            e
+                        );
                         // Fall through to API key path below
                     }
                 }

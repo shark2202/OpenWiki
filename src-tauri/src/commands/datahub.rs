@@ -167,7 +167,9 @@ pub async fn open_export_dir(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn open_data_folder() -> Result<(), String> {
-    let data_dir = dirs::data_dir().unwrap_or_default().join("com.openwiki.app");
+    let data_dir = dirs::data_dir()
+        .unwrap_or_default()
+        .join("com.openwiki.app");
 
     // Use "open -R" to reveal in Finder, targeting the db file.
     // macOS treats ".app" directories as application bundles,

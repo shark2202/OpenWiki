@@ -558,13 +558,13 @@ impl UrlReader {
             .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
             .unwrap_or_else(|| "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8".to_string());
 
-        log::info!("[YouTube] API key extracted: {}...", &api_key[..8.min(api_key.len())]);
+        log::info!(
+            "[YouTube] API key extracted: {}...",
+            &api_key[..8.min(api_key.len())]
+        );
 
         // --- Step 2: POST InnerTube API to get caption track list ---
-        let innertube_url = format!(
-            "https://www.youtube.com/youtubei/v1/player?key={}",
-            api_key
-        );
+        let innertube_url = format!("https://www.youtube.com/youtubei/v1/player?key={}", api_key);
         let innertube_body = serde_json::json!({
             "context": {
                 "client": {
@@ -626,7 +626,11 @@ impl UrlReader {
                     format!(
                         "{}\n\n{}",
                         t,
-                        if desc.is_empty() { "（该视频没有字幕）".to_string() } else { desc }
+                        if desc.is_empty() {
+                            "（该视频没有字幕）".to_string()
+                        } else {
+                            desc
+                        }
                     )
                 } else if desc.is_empty() {
                     "（该视频没有字幕）".to_string()
@@ -721,10 +725,9 @@ impl UrlReader {
 
         // Parse XML: <text start="..." dur="...">content</text>
         let re_html_tags = Regex::new(r"<[^>]*>").unwrap();
-        let re_text = Regex::new(
-            r#"<text\s+start="([^"]+)"(?:\s+dur="([^"]*)")?[^>]*>(.*?)</text>"#,
-        )
-        .unwrap();
+        let re_text =
+            Regex::new(r#"<text\s+start="([^"]+)"(?:\s+dur="([^"]*)")?[^>]*>(.*?)</text>"#)
+                .unwrap();
 
         struct Snippet {
             start: f64,
@@ -1590,7 +1593,9 @@ fn strip_html_to_text(html: &str) -> String {
     let mut in_aside = false;
 
     for ch in content_html.chars() {
-        if result.len() >= MAX_CONTENT_LENGTH { break; }
+        if result.len() >= MAX_CONTENT_LENGTH {
+            break;
+        }
 
         if ch == '<' {
             in_tag = true;
@@ -1604,18 +1609,31 @@ fn strip_html_to_text(html: &str) -> String {
                 in_tag = false;
                 let tag_lower = tag_buf.to_lowercase();
                 // Track skip zones
-                if tag_lower.starts_with("<nav") { in_nav = true; }
-                else if tag_lower.starts_with("</nav") { in_nav = false; }
-                else if tag_lower.starts_with("<header") { in_header = true; }
-                else if tag_lower.starts_with("</header") { in_header = false; }
-                else if tag_lower.starts_with("<footer") { in_footer = true; }
-                else if tag_lower.starts_with("</footer") { in_footer = false; }
-                else if tag_lower.starts_with("<aside") { in_aside = true; }
-                else if tag_lower.starts_with("</aside") { in_aside = false; }
-                else if tag_lower.starts_with("<script") { in_script = true; }
-                else if tag_lower.starts_with("</script") { in_script = false; }
-                else if tag_lower.starts_with("<style") { in_style = true; }
-                else if tag_lower.starts_with("</style") { in_style = false; }
+                if tag_lower.starts_with("<nav") {
+                    in_nav = true;
+                } else if tag_lower.starts_with("</nav") {
+                    in_nav = false;
+                } else if tag_lower.starts_with("<header") {
+                    in_header = true;
+                } else if tag_lower.starts_with("</header") {
+                    in_header = false;
+                } else if tag_lower.starts_with("<footer") {
+                    in_footer = true;
+                } else if tag_lower.starts_with("</footer") {
+                    in_footer = false;
+                } else if tag_lower.starts_with("<aside") {
+                    in_aside = true;
+                } else if tag_lower.starts_with("</aside") {
+                    in_aside = false;
+                } else if tag_lower.starts_with("<script") {
+                    in_script = true;
+                } else if tag_lower.starts_with("</script") {
+                    in_script = false;
+                } else if tag_lower.starts_with("<style") {
+                    in_style = true;
+                } else if tag_lower.starts_with("</style") {
+                    in_style = false;
+                }
                 // Block-level tags → newline
                 if tag_lower.starts_with("<br")
                     || tag_lower.starts_with("</p")

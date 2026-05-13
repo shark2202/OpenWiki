@@ -179,7 +179,8 @@ pub fn compile_discover_user_message(
 
         parts.push("\n=== Existing Knowledge Page Index ===".to_string());
         if existing_pages.is_empty() {
-            parts.push("(Knowledge base is empty — this is the first piece of content)".to_string());
+            parts
+                .push("(Knowledge base is empty — this is the first piece of content)".to_string());
         } else {
             for (id, title, summary) in existing_pages {
                 let s = if summary.is_empty() {
@@ -351,7 +352,10 @@ pub fn compile_execute_update_message(
     if crate::locale::is_english(locale) {
         let mut parts = vec![
             format!("Action: Update existing page \"{}\"", existing_title),
-            format!("Current source status: {} active sources, {} stale sources", active_source_count, stale_source_count),
+            format!(
+                "Current source status: {} active sources, {} stale sources",
+                active_source_count, stale_source_count
+            ),
         ];
         if !content_summary.is_empty() {
             parts.push(format!("New content summary: {}", content_summary));
@@ -359,14 +363,23 @@ pub fn compile_execute_update_message(
         if !user_note.is_empty() {
             parts.push(format!("User note: {}", user_note));
         }
-        parts.push(format!("\nNew content original text:\n{}", content_truncated));
+        parts.push(format!(
+            "\nNew content original text:\n{}",
+            content_truncated
+        ));
         parts.push(format!("\nCurrent page body:\n{}", body_truncated));
-        parts.push("\nUpdate the page with the new content, preserving still-valid existing information.".to_string());
+        parts.push(
+            "\nUpdate the page with the new content, preserving still-valid existing information."
+                .to_string(),
+        );
         parts.join("\n")
     } else {
         let mut parts = vec![
             format!("操作: 更新已有页面「{}」", existing_title),
-            format!("当前来源状态: {} 个活跃来源, {} 个过时来源", active_source_count, stale_source_count),
+            format!(
+                "当前来源状态: {} 个活跃来源, {} 个过时来源",
+                active_source_count, stale_source_count
+            ),
         ];
         if !content_summary.is_empty() {
             parts.push(format!("新内容摘要: {}", content_summary));
@@ -439,13 +452,22 @@ pub fn query_retrieve_user_message(
         parts.push(format!("Question: {}", question));
         parts.push("\n=== Knowledge Base Page Index (pre-filtered candidates) ===".to_string());
         if page_index.is_empty() {
-            parts.push("(No matching pages — knowledge base is empty or no candidates passed pre-filter)".to_string());
+            parts.push(
+                "(No matching pages — knowledge base is empty or no candidates passed pre-filter)"
+                    .to_string(),
+            );
         } else {
             for (id, title, summary, created_at, url) in page_index {
                 let date = created_at.get(..10).unwrap_or(created_at.as_str());
-                let url_part = url.as_deref().filter(|u| !u.is_empty())
-                    .map(|u| format!(" url={}", u)).unwrap_or_default();
-                parts.push(format!("[{}] {} (created {}) — {}{}", id, title, date, summary, url_part));
+                let url_part = url
+                    .as_deref()
+                    .filter(|u| !u.is_empty())
+                    .map(|u| format!(" url={}", u))
+                    .unwrap_or_default();
+                parts.push(format!(
+                    "[{}] {} (created {}) — {}{}",
+                    id, title, date, summary, url_part
+                ));
             }
         }
     } else {
@@ -460,9 +482,15 @@ pub fn query_retrieve_user_message(
         } else {
             for (id, title, summary, created_at, url) in page_index {
                 let date = created_at.get(..10).unwrap_or(created_at.as_str());
-                let url_part = url.as_deref().filter(|u| !u.is_empty())
-                    .map(|u| format!(" url={}", u)).unwrap_or_default();
-                parts.push(format!("[{}] {} (创建于 {}) — {}{}", id, title, date, summary, url_part));
+                let url_part = url
+                    .as_deref()
+                    .filter(|u| !u.is_empty())
+                    .map(|u| format!(" url={}", u))
+                    .unwrap_or_default();
+                parts.push(format!(
+                    "[{}] {} (创建于 {}) — {}{}",
+                    id, title, date, summary, url_part
+                ));
             }
         }
     }
@@ -629,7 +657,9 @@ pub fn query_answer_user_message(
             parts.push("\n=== Relevant Knowledge Pages (full text) ===".to_string());
             let mut budget = 8000i64;
             for (id, title, body) in relevant_pages {
-                if budget <= 0 { break; }
+                if budget <= 0 {
+                    break;
+                }
                 let take = (budget as usize).min(body.chars().count());
                 let body_truncated: String = body.chars().take(take).collect();
                 parts.push(format!("\n--- [{}] {} ---\n{}", id, title, body_truncated));
@@ -641,12 +671,18 @@ pub fn query_answer_user_message(
             parts.push("\n=== Candidate Pages (pre-filtered) ===".to_string());
             for (id, title, summary, created_at, url) in page_overview {
                 let date = created_at.get(..10).unwrap_or(created_at.as_str());
-                let url_part = url.as_deref().filter(|u| !u.is_empty())
-                    .map(|u| format!(" url={}", u)).unwrap_or_default();
+                let url_part = url
+                    .as_deref()
+                    .filter(|u| !u.is_empty())
+                    .map(|u| format!(" url={}", u))
+                    .unwrap_or_default();
                 if summary.is_empty() {
                     parts.push(format!("[{}] {} (created {}){}", id, title, date, url_part));
                 } else {
-                    parts.push(format!("[{}] {} (created {}) — {}{}", id, title, date, summary, url_part));
+                    parts.push(format!(
+                        "[{}] {} (created {}) — {}{}",
+                        id, title, date, summary, url_part
+                    ));
                 }
             }
         } else {
@@ -663,7 +699,9 @@ pub fn query_answer_user_message(
             parts.push("\n=== 相关知识页面（全文） ===".to_string());
             let mut budget = 8000i64;
             for (id, title, body) in relevant_pages {
-                if budget <= 0 { break; }
+                if budget <= 0 {
+                    break;
+                }
                 let take = (budget as usize).min(body.chars().count());
                 let body_truncated: String = body.chars().take(take).collect();
                 parts.push(format!("\n--- [{}] {} ---\n{}", id, title, body_truncated));
@@ -675,12 +713,18 @@ pub fn query_answer_user_message(
             parts.push("\n=== 候选页面（已按相关性预筛） ===".to_string());
             for (id, title, summary, created_at, url) in page_overview {
                 let date = created_at.get(..10).unwrap_or(created_at.as_str());
-                let url_part = url.as_deref().filter(|u| !u.is_empty())
-                    .map(|u| format!(" url={}", u)).unwrap_or_default();
+                let url_part = url
+                    .as_deref()
+                    .filter(|u| !u.is_empty())
+                    .map(|u| format!(" url={}", u))
+                    .unwrap_or_default();
                 if summary.is_empty() {
                     parts.push(format!("[{}] {} (创建于 {}){}", id, title, date, url_part));
                 } else {
-                    parts.push(format!("[{}] {} (创建于 {}) — {}{}", id, title, date, summary, url_part));
+                    parts.push(format!(
+                        "[{}] {} (创建于 {}) — {}{}",
+                        id, title, date, summary, url_part
+                    ));
                 }
             }
         } else {

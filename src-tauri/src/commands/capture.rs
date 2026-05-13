@@ -101,6 +101,10 @@ fn is_supported_document_file(file_name: &str) -> bool {
     lower.ends_with(".pdf") || lower.ends_with(".docx") || lower.ends_with(".pptx")
 }
 
+fn is_pdf_file(file_name: &str) -> bool {
+    file_name.to_lowercase().ends_with(".pdf")
+}
+
 fn title_from_markdown_filename(file_name: &str) -> String {
     Path::new(file_name)
         .file_stem()
@@ -154,6 +158,17 @@ fn normalize_imported_text(file_name: &str, content: &str) -> Option<String> {
         title_from_filename(file_name, "Imported Text"),
         trimmed
     ))
+}
+
+fn looks_like_cid_garbled_pdf_text(text: &str) -> bool {
+    let marker_count = text.matches("(cid:").count();
+    if marker_count < 8 {
+        return false;
+    }
+
+    let char_count = text.chars().count().max(1);
+    let estimated_marker_chars = marker_count * "(cid:0000)".len();
+    marker_count >= 50 || estimated_marker_chars * 100 / char_count >= 5
 }
 
 fn safe_import_extension(file_name: &str) -> String {
@@ -280,16 +295,16 @@ fn markitdown_command_candidates(app: &tauri::AppHandle) -> Vec<(String, Vec<Str
         "/opt/homebrew/bin/python3",
         "/usr/local/bin/python3",
     ] {
-        candidates.push((python.to_string(), vec!["-m".to_string(), "markitdown".to_string()]));
+        candidates.push((
+            python.to_string(),
+            vec!["-m".to_string(), "markitdown".to_string()],
+        ));
     }
 
     candidates
 }
 
-fn convert_document_with_markitdown(
-    app: &tauri::AppHandle,
-    path: &Path,
-) -> Result<String, String> {
+fn convert_document_with_markitdown(app: &tauri::AppHandle, path: &Path) -> Result<String, String> {
     let file_arg = path.to_string_lossy().to_string();
     let mut attempted = Vec::new();
 
@@ -338,6 +353,16 @@ fn convert_document_with_markitdown(
         "缺少文档转换器 MarkItDown，暂时无法导入 PDF/Word/PPT。尝试过：{}",
         attempted.join(", ")
     ))
+}
+
+fn convert_pdf_with_ocr(path: &Path) -> Result<String, String> {
+    let path_arg = path.to_string_lossy().to_string();
+    let text = crate::capture::ocr::recognize_text(&path_arg)?;
+    let trimmed = text.trim();
+    if trimmed.chars().count() < 20 {
+        return Err("PDF OCR 后没有提取到足够文字".to_string());
+    }
+    Ok(trimmed.to_string())
 }
 
 /// Copy a source image to the captures directory and return the new path.
@@ -686,9 +711,20 @@ pub fn import_markdown_files(
 }
 
 #[tauri::command]
-pub fn import_content_files(
+pub async fn import_content_files(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
+    entries: Vec<ContentImportEntry>,
+) -> Result<ContentImportResult, String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || import_content_files_blocking(app, db, entries))
+        .await
+        .map_err(|e| format!("Import task error: {}", e))?
+}
+
+fn import_content_files_blocking(
+    app: tauri::AppHandle,
+    db: Arc<Database>,
     entries: Vec<ContentImportEntry>,
 ) -> Result<ContentImportResult, String> {
     let mut result = ContentImportResult {
@@ -724,14 +760,9 @@ pub fn import_content_files(
                     image_path: None,
                 };
 
-                match save_content_auto(&state.db, event) {
+                match save_content_auto(&db, event) {
                     Ok(content) => {
-                        spawn_summary_task(
-                            state.db.clone(),
-                            app.clone(),
-                            content.id.clone(),
-                            markdown,
-                        );
+                        spawn_summary_task(db.clone(), app.clone(), content.id.clone(), markdown);
                         result.imported.push(content);
                     }
                     Err(e) if e.contains("Duplicate content") => {
@@ -765,14 +796,9 @@ pub fn import_content_files(
                     image_path: None,
                 };
 
-                match save_content_auto(&state.db, event) {
+                match save_content_auto(&db, event) {
                     Ok(content) => {
-                        spawn_summary_task(
-                            state.db.clone(),
-                            app.clone(),
-                            content.id.clone(),
-                            normalized,
-                        );
+                        spawn_summary_task(db.clone(), app.clone(), content.id.clone(), normalized);
                         result.imported.push(content);
                     }
                     Err(e) if e.contains("Duplicate content") => {
@@ -810,9 +836,9 @@ pub fn import_content_files(
                     image_path: Some(temp_path_str),
                 };
 
-                match save_content_auto(&state.db, event) {
+                match save_content_auto(&db, event) {
                     Ok(content) => {
-                        spawn_auto_ocr(&app, &state.db, &content);
+                        spawn_auto_ocr(&app, &db, &content);
                         result.imported.push(content);
                     }
                     Err(e) if e.contains("Duplicate content") => {
@@ -850,18 +876,74 @@ pub fn import_content_files(
                     }
                 };
 
+                let is_pdf = is_pdf_file(&entry.file_name);
                 let markdown = match convert_document_with_markitdown(&app, &temp_path) {
-                    Ok(markdown) => normalize_imported_markdown(&entry.file_name, &markdown),
-                    Err(e) => {
-                        result.failed.push(format!("{}: {}", entry.file_name, e));
-                        if let Err(cleanup_err) = std::fs::remove_file(&temp_path) {
+                    Ok(markdown) => {
+                        if is_pdf && looks_like_cid_garbled_pdf_text(&markdown) {
                             log::warn!(
-                                "Failed to clean imported document temp file {}: {}",
-                                temp_path.display(),
-                                cleanup_err
+                                "MarkItDown produced CID-garbled PDF text for {}, falling back to OCR",
+                                entry.file_name
                             );
+                            match convert_pdf_with_ocr(&temp_path) {
+                                Ok(ocr_text) => {
+                                    normalize_imported_text(&entry.file_name, &ocr_text)
+                                }
+                                Err(e) => {
+                                    result.failed.push(format!(
+                                        "{}: PDF 文本层乱码，OCR 兜底也失败: {}",
+                                        entry.file_name, e
+                                    ));
+                                    if let Err(cleanup_err) = std::fs::remove_file(&temp_path) {
+                                        log::warn!(
+                                            "Failed to clean imported document temp file {}: {}",
+                                            temp_path.display(),
+                                            cleanup_err
+                                        );
+                                    }
+                                    continue;
+                                }
+                            }
+                        } else {
+                            normalize_imported_markdown(&entry.file_name, &markdown)
                         }
-                        continue;
+                    }
+                    Err(e) => {
+                        if is_pdf {
+                            log::warn!(
+                                "MarkItDown failed for {}, trying OCR fallback: {}",
+                                entry.file_name,
+                                e
+                            );
+                            match convert_pdf_with_ocr(&temp_path) {
+                                Ok(ocr_text) => {
+                                    normalize_imported_text(&entry.file_name, &ocr_text)
+                                }
+                                Err(ocr_err) => {
+                                    result.failed.push(format!(
+                                        "{}: MarkItDown 转换失败: {}; OCR 兜底失败: {}",
+                                        entry.file_name, e, ocr_err
+                                    ));
+                                    if let Err(cleanup_err) = std::fs::remove_file(&temp_path) {
+                                        log::warn!(
+                                            "Failed to clean imported document temp file {}: {}",
+                                            temp_path.display(),
+                                            cleanup_err
+                                        );
+                                    }
+                                    continue;
+                                }
+                            }
+                        } else {
+                            result.failed.push(format!("{}: {}", entry.file_name, e));
+                            if let Err(cleanup_err) = std::fs::remove_file(&temp_path) {
+                                log::warn!(
+                                    "Failed to clean imported document temp file {}: {}",
+                                    temp_path.display(),
+                                    cleanup_err
+                                );
+                            }
+                            continue;
+                        }
                     }
                 };
 
@@ -885,14 +967,9 @@ pub fn import_content_files(
                     image_path: None,
                 };
 
-                match save_content_auto(&state.db, event) {
+                match save_content_auto(&db, event) {
                     Ok(content) => {
-                        spawn_summary_task(
-                            state.db.clone(),
-                            app.clone(),
-                            content.id.clone(),
-                            markdown,
-                        );
+                        spawn_summary_task(db.clone(), app.clone(), content.id.clone(), markdown);
                         result.imported.push(content);
                     }
                     Err(e) if e.contains("Duplicate content") => {
@@ -1327,7 +1404,11 @@ pub fn spawn_summary_task(
     // At least 50 characters to be worth summarizing — very short text
     // causes AI to summarize the prompt itself instead of the content
     if text.trim().len() < 50 {
-        log::info!("[SUMMARY] skip {} — text too short ({} chars)", content_id, text.trim().len());
+        log::info!(
+            "[SUMMARY] skip {} — text too short ({} chars)",
+            content_id,
+            text.trim().len()
+        );
         return;
     }
     log::info!("[SUMMARY] spawn for {} ({} chars)", content_id, text.len());
@@ -1336,7 +1417,8 @@ pub fn spawn_summary_task(
         let repo = crate::storage::repository::Repository::new(db.clone());
 
         // Helper: trigger wiki auto-compile after summary is saved
-        let maybe_wiki_compile = |db_ref: std::sync::Arc<crate::storage::database::Database>, cid: String| {
+        let maybe_wiki_compile = |db_ref: std::sync::Arc<crate::storage::database::Database>,
+                                  cid: String| {
             let wiki_auto = crate::storage::repository::Repository::new(db_ref.clone())
                 .get_setting("wiki_auto_compile")
                 .ok()
@@ -1464,18 +1546,34 @@ pub fn spawn_summary_task(
         // Try Gemini OAuth if provider is google
         if provider_str == "google" {
             if let Some(result) = crate::ai::attention_analyzer::try_gemini_call(
-                db.clone(), "", &prompt, 0.5, false, // summary, not deep analysis
-            ).await {
+                db.clone(),
+                "",
+                &prompt,
+                0.5,
+                false, // summary, not deep analysis
+            )
+            .await
+            {
                 match result {
                     Ok(raw) => {
                         log::info!("Gemini OAuth summary generated for {}", content_id);
                         let (summary, tags, digest) = extract_summary_tags_digest(&raw);
                         if !summary.is_empty() {
                             let tags_str = tags.join(",");
-                            let _ = repo.update_summary_and_tags(&content_id, &summary, &tags_str, &digest);
+                            let _ = repo.update_summary_and_tags(
+                                &content_id,
+                                &summary,
+                                &tags_str,
+                                &digest,
+                            );
                             let _ = app.emit("content-summary-ready", &content_id);
                             maybe_wiki_compile(db.clone(), content_id.clone());
-                            log::info!("Summary generated for {}: [{}] {}", content_id, tags_str, summary);
+                            log::info!(
+                                "Summary generated for {}: [{}] {}",
+                                content_id,
+                                tags_str,
+                                summary
+                            );
                         }
                         return;
                     }
@@ -1487,20 +1585,34 @@ pub fn spawn_summary_task(
         }
 
         // API key path — skip if no key configured (except for local/custom providers)
-        let is_local_or_custom = provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
+        let is_local_or_custom =
+            provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
         if api_key.is_empty() && !is_local_or_custom {
-            log::warn!("[SUMMARY] {} — no API key and not local provider (provider={})", content_id, provider_str);
+            log::warn!(
+                "[SUMMARY] {} — no API key and not local provider (provider={})",
+                content_id,
+                provider_str
+            );
             return;
         }
-        let base_url = repo.get_setting("ai_custom_base_url").ok().flatten().unwrap_or_default();
+        let base_url = repo
+            .get_setting("ai_custom_base_url")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
 
         log::info!(
             "[SUMMARY] {} — calling provider={} model={} base_url='{}' prompt_len={}",
-            content_id, provider_str, model, base_url, prompt.len()
+            content_id,
+            provider_str,
+            model,
+            base_url,
+            prompt.len()
         );
 
         let provider = crate::ai::attention_analyzer::AnalysisProvider::from_str_with_base(
-            &provider_str, &base_url,
+            &provider_str,
+            &base_url,
         );
         match crate::ai::attention_analyzer::call_analysis_api(
             &provider, &api_key, &model, "", &prompt, 1024, true,
@@ -1508,7 +1620,12 @@ pub fn spawn_summary_task(
         .await
         {
             Ok(raw) => {
-                log::info!("[SUMMARY] {} — response received ({} chars): {}", content_id, raw.len(), raw.chars().take(200).collect::<String>());
+                log::info!(
+                    "[SUMMARY] {} — response received ({} chars): {}",
+                    content_id,
+                    raw.len(),
+                    raw.chars().take(200).collect::<String>()
+                );
                 let (summary, tags, digest) = extract_summary_tags_digest(&raw);
                 if !summary.is_empty() {
                     let tags_str = tags.join(",");
@@ -1522,7 +1639,10 @@ pub fn spawn_summary_task(
                         summary
                     );
                 } else {
-                    log::warn!("[SUMMARY] {} — empty summary extracted from raw response", content_id);
+                    log::warn!(
+                        "[SUMMARY] {} — empty summary extracted from raw response",
+                        content_id
+                    );
                 }
             }
             Err(e) => {
@@ -1635,7 +1755,8 @@ pub fn spawn_clean_content_task(
             .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
             .unwrap_or_default();
 
-        let is_local_or_custom = provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
+        let is_local_or_custom =
+            provider_str == "custom" || provider_str == "ollama" || provider_str == "lmstudio";
         if api_key.is_empty() && !is_local_or_custom {
             // Try OAuth paths
             if provider_str == "openai" {
@@ -1678,10 +1799,15 @@ pub fn spawn_clean_content_task(
             .ok()
             .flatten()
             .unwrap_or_else(|| "claude-sonnet-4-6".to_string());
-        let base_url = repo.get_setting("ai_custom_base_url").ok().flatten().unwrap_or_default();
+        let base_url = repo
+            .get_setting("ai_custom_base_url")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
 
         let provider = crate::ai::attention_analyzer::AnalysisProvider::from_str_with_base(
-            &provider_str, &base_url,
+            &provider_str,
+            &base_url,
         );
         match crate::ai::attention_analyzer::call_analysis_api(
             &provider,
@@ -1769,7 +1895,11 @@ fn save_clean_content(
     match repo.update_clean_content(content_id, stripped) {
         Ok(()) => {
             let _ = app.emit("content:clean-ready", content_id);
-            log::info!("Clean content saved for {} ({} chars)", content_id, stripped.len());
+            log::info!(
+                "Clean content saved for {} ({} chars)",
+                content_id,
+                stripped.len()
+            );
             // Trigger wiki recompile with the now-clean content
             let cid = content_id.to_string();
             let db_ref = db;
@@ -1832,4 +1962,24 @@ pub async fn test_ai_connection(
         false,
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_cid_garbled_pdf_text() {
+        let garbled = "# 标题\n\n(cid:499)(cid:732)(cid:499)(cid:732) —— (cid:440)(cid:133)(cid:1121)(cid:1328)(cid:704)(cid:150)(cid:192)\n\
+            (cid:1409)(cid:846)(cid:1625)(cid:1644)(cid:131)(cid:693)(cid:693)(cid:303)(cid:512)";
+
+        assert!(looks_like_cid_garbled_pdf_text(garbled));
+    }
+
+    #[test]
+    fn does_not_flag_normal_text_with_one_literal_cid() {
+        let normal = "# PDF Notes\n\nThis article mentions the literal token (cid:123) once, but the rest of the document is readable.";
+
+        assert!(!looks_like_cid_garbled_pdf_text(normal));
+    }
 }
