@@ -3204,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "openwiki"
-version = "0.3.13"
+version = "0.3.14"
 dependencies = [
  "arboard",
  "base64 0.22.1",
