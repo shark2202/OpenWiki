@@ -372,7 +372,7 @@ function App() {
           <WikiView />
         </div>
         <div style={{ display: activeTab === "digest" ? "block" : "none" }}>
-          <RadarView />
+          <RadarView active={activeTab === "digest"} />
         </div>
         <div style={{ display: activeTab === "datahub" ? "block" : "none" }}>
           <DataHubView />

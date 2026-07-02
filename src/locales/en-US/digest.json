@@ -118,7 +118,10 @@
       "spanDays": "spanning {{count}} days",
       "itemsShort": "{{count}} items",
       "daysShort": "{{count}} days"
-    }
+    },
+    "generateBtn": "Generate",
+    "refreshBtn": "Refresh",
+    "analyzingBtn": "Analyzing…"
   },
   "insight": {
     "backToRadar": "Back to Radar",

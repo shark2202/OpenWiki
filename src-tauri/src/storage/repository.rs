@@ -956,6 +956,22 @@ impl Repository {
         Ok(count)
     }
 
+    /// Total number of non-deleted captured items. Used by the insight
+    /// scheduler to decide when a first auto-report should be generated.
+    pub fn count_content(&self) -> Result<i64, Box<dyn std::error::Error>> {
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM captured_content WHERE is_deleted = 0",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
     // ========== App Settings ==========
 
     /// Get a setting value by key.

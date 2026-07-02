@@ -36,7 +36,10 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   isLoading: true,
 
   loadRadar: async () => {
-    set({ isLoading: true });
+    // Only show the loading skeleton on the first load. Re-checks when the user
+    // returns to the tab should refresh silently, not flash the whole page.
+    const hasData = !!(get().report || get().analysis);
+    if (!hasData) set({ isLoading: true });
     try {
       const result = await getAttentionInsights();
       let analysis: BriefingAnalysis | null = null;

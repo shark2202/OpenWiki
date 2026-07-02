@@ -153,9 +153,17 @@ pub async fn trigger_attention_analysis(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    run_attention_analysis(app, state.db.clone()).await
+}
+
+/// Core insight-analysis routine, callable both from the Tauri command and
+/// from the background scheduler (which has no `State`).
+pub async fn run_attention_analysis(
+    app: AppHandle,
+    db: std::sync::Arc<crate::storage::database::Database>,
+) -> Result<(), String> {
     use tauri::Emitter;
 
-    let db = state.db.clone();
     let repo = Repository::new(db.clone());
 
     // 1. Check if already analyzing

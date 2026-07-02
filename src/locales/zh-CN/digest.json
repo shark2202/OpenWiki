@@ -118,7 +118,10 @@
       "spanDays": "持续 {{count}} 天",
       "itemsShort": "{{count}} 条",
       "daysShort": "{{count}} 天"
-    }
+    },
+    "generateBtn": "生成报告",
+    "refreshBtn": "刷新报告",
+    "analyzingBtn": "分析中…"
   },
   "insight": {
     "backToRadar": "返回雷达",

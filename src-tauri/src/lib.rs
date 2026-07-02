@@ -210,6 +210,18 @@ pub fn run() {
                 crate::automation::spawn_startup_check(app.handle().clone(), state.db.clone());
             }
 
+            // --- Insight report auto-scheduler ---
+            // Auto-generates the first attention report once enough content is
+            // saved, then refreshes weekly when there's new content. Reuses the
+            // same analysis routine as the manual button; all failures logged only.
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                crate::scheduler::weekly::spawn_insight_scheduler(
+                    app.handle().clone(),
+                    state.db.clone(),
+                );
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

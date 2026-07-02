@@ -44,16 +44,16 @@ class RadarErrorBoundary extends Component<{ children: ReactNode; errorTitle: st
   }
 }
 
-export function RadarView() {
+export function RadarView({ active = true }: { active?: boolean }) {
   const { t } = useTranslation("digest");
   return (
     <RadarErrorBoundary errorTitle={t("radar.errorTitle")} retryLabel={t("radar.retry")}>
-      <RadarViewInner />
+      <RadarViewInner active={active} />
     </RadarErrorBoundary>
   );
 }
 
-function RadarViewInner() {
+function RadarViewInner({ active }: { active: boolean }) {
   const { t } = useTranslation("digest");
   const {
     status,
@@ -81,12 +81,20 @@ function RadarViewInner() {
   const rangeStart = formatDate(windowStart);
   const rangeEnd = formatDate(windowEnd);
 
+  // Listen for analysis-complete events once.
   useEffect(() => {
-    loadRadar();
     let unlisten: (() => void) | undefined;
     setupEventListener().then((fn) => { unlisten = fn; });
     return () => { unlisten?.(); };
-  }, [loadRadar, setupEventListener]);
+  }, [setupEventListener]);
+
+  // Re-check status every time this tab becomes active. The tab stays mounted
+  // (display:none), so without this the "need API key" / "not enough content"
+  // status would stick from first load — configuring the API key or saving
+  // content in another tab wouldn't refresh it until an app restart.
+  useEffect(() => {
+    if (active) loadRadar();
+  }, [active, loadRadar]);
 
   const isAnalyzing = status === "analyzing";
   const hasReport = report !== null;
@@ -114,12 +122,13 @@ function RadarViewInner() {
             <button
               onClick={() => triggerAnalysis()}
               disabled={isAnalyzing || !hasNewContent}
-              className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300
-                         hover:bg-stone-100 dark:hover:bg-white/[0.08]
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium
                          disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              style={{ color: ACCENT, backgroundColor: `${ACCENT}12`, border: `1px solid ${ACCENT}30` }}
               title={t("radar.refreshTitle")}
             >
-              <RefreshCw size={18} strokeWidth={2} className={isAnalyzing ? "animate-spin" : ""} />
+              <RefreshCw size={15} strokeWidth={2.5} className={isAnalyzing ? "animate-spin" : ""} />
+              {isAnalyzing ? t("radar.analyzingBtn") : hasFindings ? t("radar.refreshBtn") : t("radar.generateBtn")}
             </button>
           </div>
         </div>
