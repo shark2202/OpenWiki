@@ -121,7 +121,20 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Use a portable Python built for older macOS. The runner's system
+      # python3 is compiled for macOS 15, so its bundled C extensions (pyexpat)
+      # link against macOS-15-only symbols and the converter crashes on older
+      # systems. setup-python's builds target macOS 11/12, so PDF/Word/PPT
+      # conversion works down to macOS 12.
+      - name: Set up Python for the document converter
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Prepare bundled document converter
+        env:
+          PYTHON_BIN: ${{ steps.setup-python.outputs.python-path }}
         run: ./src-tauri/scripts/setup_markitdown.sh
 
       - name: Import code signing certificate
@@ -141,9 +154,24 @@ jobs:
           set -e
           # Pre-compile the OCR Swift helper (build.rs would do this inside
           # tauri-action, but we need it signed before bundling).
+          # -target ...-macos12.0 makes it run on macOS 12+, not just the
+          # macOS 15 build machine. swiftc ignores MACOSX_DEPLOYMENT_TARGET,
+          # so the floor must live in the -target triple. build.rs skips
+          # recompiling (this binary is newer than the source), so it sticks.
           /usr/bin/swiftc -O \
+            -target "$(uname -m)-apple-macos12.0" \
             src-tauri/resources/openwiki_ocr.swift \
             -o src-tauri/resources/openwiki_ocr_bin
+
+          # Guard against a silent deployment-target regression: if the helper
+          # ever gets built for a newer floor again, it breaks OCR on older
+          # macOS with no error at build time. Fail loudly here instead.
+          OCR_MINOS=$(vtool -show-build src-tauri/resources/openwiki_ocr_bin | awk '/minos/{print $2}')
+          echo "OCR helper minos = ${OCR_MINOS}"
+          case "${OCR_MINOS}" in
+            12.*) ;;
+            *) echo "::error::OCR helper targets macOS ${OCR_MINOS}, expected 12.x"; exit 1 ;;
+          esac
 
           ENT=src-tauri/entitlements.plist
           for binary in \

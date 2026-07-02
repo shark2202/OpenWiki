@@ -28,9 +28,23 @@ fn main() {
         };
 
         if needs_rebuild {
+            // Pin the deployment target so the helper runs on older macOS.
+            // Without this, swiftc defaults to the build machine's OS version
+            // (macOS 15 on CI), and the binary fails to load on anything older
+            // ("built for macOS 15.0 which is newer than running OS"). swiftc
+            // ignores the MACOSX_DEPLOYMENT_TARGET env var, so the version must
+            // be baked into the -target triple. Cargo's arch name (aarch64)
+            // differs from the Apple triple arch (arm64), so map it.
+            let arch = match std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+                Ok("x86_64") => "x86_64",
+                _ => "arm64",
+            };
+            let target = format!("{}-apple-macos12.0", arch);
             let status = std::process::Command::new("/usr/bin/swiftc")
                 .args([
                     "-O",
+                    "-target",
+                    &target,
                     swift_src.to_str().unwrap(),
                     "-o",
                     swift_bin.to_str().unwrap(),
