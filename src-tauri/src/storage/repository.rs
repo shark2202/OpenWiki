@@ -3,8 +3,10 @@ use super::models::{
     AttentionInsight, CapturedContent, ContentForAnalysis, ContentType, ReportSection,
     UserFeedback, UserPreference, WeeklyReport,
 };
+use crate::secure_store;
 use rusqlite::params;
 use serde_json;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub struct Repository {
@@ -974,8 +976,10 @@ impl Repository {
 
     // ========== App Settings ==========
 
-    /// Get a setting value by key.
-    pub fn get_setting(&self, key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    fn get_setting_from_db(
+        &self,
+        key: &str,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -991,31 +995,11 @@ impl Repository {
         }
     }
 
-    /// Get all settings as key-value pairs.
-    pub fn get_all_settings(
+    fn update_setting_db(
         &self,
-    ) -> Result<std::collections::HashMap<String, String>, Box<dyn std::error::Error>> {
-        let conn = self
-            .db
-            .conn
-            .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
-
-        let mut stmt = conn.prepare("SELECT key, value FROM app_settings")?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?;
-
-        let mut settings = std::collections::HashMap::new();
-        for row in rows {
-            let (key, value) = row?;
-            settings.insert(key, value);
-        }
-        Ok(settings)
-    }
-
-    /// Update a setting value by key.
-    pub fn update_setting(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+        key: &str,
+        value: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let conn = self
             .db
             .conn
@@ -1028,6 +1012,94 @@ impl Repository {
             params![key, value],
         )?;
         Ok(())
+    }
+
+    /// Get a setting value by key. Sensitive values are encrypted in SQLite,
+    /// with a one-time migration from older plaintext values.
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        if secure_store::is_secret_setting(key) {
+            let db_value = self.get_setting_from_db(key)?;
+            let Some(value) = db_value else {
+                return Ok(None);
+            };
+
+            if value.is_empty() || secure_store::is_secret_placeholder(&value) {
+                return Ok(None);
+            }
+
+            if secure_store::is_encrypted_value(&value) {
+                return secure_store::decrypt_secret(&value)
+                    .map(Some)
+                    .map_err(|e| e.into());
+            }
+
+            match secure_store::encrypt_secret(&value) {
+                Ok(encrypted) => {
+                    if let Err(e) = self.update_setting_db(key, &encrypted) {
+                        log::warn!(
+                            "Encrypted secret setting '{}' but failed to persist migration: {}",
+                            key,
+                            e
+                        );
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Failed to encrypt legacy secret setting '{}'; using plaintext value for this read: {}",
+                    key,
+                    e
+                ),
+            }
+            return Ok(Some(value));
+        }
+
+        self.get_setting_from_db(key)
+    }
+
+    /// Get all settings as key-value pairs.
+    pub fn get_all_settings(
+        &self,
+    ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+        let conn = self
+            .db
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?;
+
+        let mut stmt = conn.prepare("SELECT key, value FROM app_settings")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        let mut settings = HashMap::new();
+        for row in rows {
+            let (key, value) = row?;
+            if secure_store::is_secret_setting(&key) {
+                settings.insert(key, secure_store::mask_secret_value(&value));
+            } else {
+                settings.insert(key, value);
+            }
+        }
+
+        Ok(settings)
+    }
+
+    /// Update a setting value by key. Sensitive values are encrypted before
+    /// writing to SQLite, so loading settings never triggers an OS prompt.
+    pub fn update_setting(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+        if secure_store::is_secret_setting(key) {
+            if secure_store::is_secret_placeholder(value) {
+                return Ok(());
+            }
+
+            if value.is_empty() {
+                return self.update_setting_db(key, "");
+            }
+
+            let encrypted = secure_store::encrypt_secret(value)?;
+            return self.update_setting_db(key, &encrypted);
+        }
+
+        self.update_setting_db(key, value)
     }
 
     // ========== Attention Insights ==========
@@ -3182,6 +3254,85 @@ mod tests {
         assert_eq!(cjk_segment("整 理"), "整 理");
         // Empty
         assert_eq!(cjk_segment(""), "");
+    }
+
+    #[test]
+    fn secret_setting_update_encrypts_sqlite_value() {
+        let db = test_db();
+        let repo = Repository::new(db);
+        let key = "ai_api_key_test_update";
+
+        repo.update_setting(key, "sk-test-secret")
+            .unwrap();
+
+        let stored = repo.get_setting_from_db(key).unwrap().unwrap();
+        assert!(crate::secure_store::is_encrypted_value(&stored));
+        assert_ne!(stored, "sk-test-secret");
+        assert_eq!(
+            repo.get_setting(key).unwrap(),
+            Some("sk-test-secret".to_string())
+        );
+    }
+
+    #[test]
+    fn secret_setting_read_migrates_plaintext_sqlite_value() {
+        let db = test_db();
+        let repo = Repository::new(db);
+        let key = "ai_api_key_test_migration";
+        repo.update_setting_db(key, "sk-legacy-secret").unwrap();
+
+        assert_eq!(
+            repo.get_setting(key).unwrap(),
+            Some("sk-legacy-secret".to_string())
+        );
+        let stored = repo.get_setting_from_db(key).unwrap().unwrap();
+        assert!(crate::secure_store::is_encrypted_value(&stored));
+        assert_ne!(stored, "sk-legacy-secret");
+    }
+
+    #[test]
+    fn secret_setting_placeholder_update_preserves_existing_secret() {
+        let db = test_db();
+        let repo = Repository::new(db);
+        let key = "ai_api_key_test_placeholder";
+
+        repo.update_setting(key, "sk-test-secret").unwrap();
+        let stored_before = repo.get_setting_from_db(key).unwrap().unwrap();
+
+        repo.update_setting(key, crate::secure_store::SECRET_SETTING_PRESENT)
+            .unwrap();
+
+        assert_eq!(
+            repo.get_setting(key).unwrap(),
+            Some("sk-test-secret".to_string())
+        );
+        assert_eq!(
+            repo.get_setting_from_db(key).unwrap(),
+            Some(stored_before)
+        );
+    }
+
+    #[test]
+    fn get_all_settings_masks_secret_values() {
+        let db = test_db();
+        let repo = Repository::new(db);
+        repo.update_setting_db("ai_api_key_openai", "sk-legacy-secret")
+            .unwrap();
+        repo.update_setting("ai_provider", "openai").unwrap();
+
+        let settings = repo.get_all_settings().unwrap();
+        assert_eq!(
+            settings.get("ai_api_key_openai"),
+            Some(&crate::secure_store::SECRET_SETTING_PRESENT.to_string())
+        );
+        assert_eq!(
+            repo.get_setting_from_db("ai_api_key_openai").unwrap(),
+            Some("sk-legacy-secret".to_string())
+        );
+        assert_eq!(
+            settings.get("ai_provider"),
+            Some(&"openai".to_string())
+        );
     }
 
     #[test]

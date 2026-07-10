@@ -5,11 +5,19 @@ use crate::storage::repository::Repository;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
+const ANALYSIS_WINDOW_DAYS: i64 = 15;
+const MIN_ANALYSIS_ITEMS: usize = 5;
+const MAX_ANALYSIS_ITEMS: usize = 100;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RadarStatus {
     pub status: String,
     pub insight: Option<AttentionInsight>,
     pub has_new_content: bool,
+}
+
+fn has_enough_content_for_analysis(count: usize) -> bool {
+    count >= MIN_ANALYSIS_ITEMS
 }
 
 /// Get the current attention radar status and insight.
@@ -44,12 +52,12 @@ pub fn get_attention_insights(state: State<'_, AppState>) -> Result<RadarStatus,
         });
     }
 
-    // 2. Check if we have enough content (at least 5 items in the last 15 days)
+    // 2. Check if we have enough content for a useful report.
     let content_check = repo
-        .get_recent_content_for_analysis(15, 5)
+        .get_recent_content_for_analysis(ANALYSIS_WINDOW_DAYS, MIN_ANALYSIS_ITEMS)
         .map_err(|e| format!("Failed to check content: {}", e))?;
 
-    if content_check.len() < 5 {
+    if !has_enough_content_for_analysis(content_check.len()) {
         return Ok(RadarStatus {
             status: "not_enough_content".to_string(),
             insight: None,
@@ -212,13 +220,16 @@ pub async fn run_attention_analysis(
         .flatten()
         .unwrap_or_default();
 
-    // 3. Get content for analysis (15 days, max 100)
+    // 3. Get content for analysis using the same window/minimum as status checks.
     let items = repo
-        .get_recent_content_for_analysis(15, 100)
+        .get_recent_content_for_analysis(ANALYSIS_WINDOW_DAYS, MAX_ANALYSIS_ITEMS)
         .map_err(|e| format!("Failed to get content: {}", e))?;
 
-    if items.is_empty() {
-        return Err("Not enough content for analysis".to_string());
+    if !has_enough_content_for_analysis(items.len()) {
+        return Err(format!(
+            "Not enough content for analysis (need at least {} items from the last {} days)",
+            MIN_ANALYSIS_ITEMS, ANALYSIS_WINDOW_DAYS
+        ));
     }
 
     let item_count = items.len();
@@ -227,7 +238,7 @@ pub async fn run_attention_analysis(
     // 4. Create "analyzing" record
     let now = chrono::Utc::now();
     let window_end = now.to_rfc3339();
-    let window_start = (now - chrono::TimeDelta::days(15)).to_rfc3339();
+    let window_start = (now - chrono::TimeDelta::days(ANALYSIS_WINDOW_DAYS)).to_rfc3339();
 
     let insight_id = repo
         .save_attention_insight(

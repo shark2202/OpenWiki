@@ -60,6 +60,7 @@
     "apiKey": "API Key",
     "apiKeyDesc": "安全存储在本地",
     "apiKeyPlaceholder": "输入你的 API Key",
+    "apiKeyStoredPlaceholder": "已保存，输入新 API Key 可替换",
     "baseUrl": "服务地址",
     "baseUrlOllamaHint": "Ollama 默认地址已填好，改模型名即可",
     "baseUrlLmStudioHint": "LM Studio 默认端口已填好，请在 LM Studio 里启动 Server 后填写已加载的模型名",

@@ -1,7 +1,8 @@
 import { useState, useEffect, Component, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { RefreshCw, Key, Target, Search } from "lucide-react";
+import { Download, Loader2, RefreshCw, Key, Target, Search } from "lucide-react";
 import { useRadarStore } from "../../stores/radarStore";
+import { exportCurrentRadarReport } from "../../services/radarService";
 import type {
   Glance,
   InfoDiet,
@@ -55,12 +56,15 @@ export function RadarView({ active = true }: { active?: boolean }) {
 
 function RadarViewInner({ active }: { active: boolean }) {
   const { t } = useTranslation("digest");
+  const [isExportingReport, setIsExportingReport] = useState(false);
+  const [exportStatus, setExportStatus] = useState<"idle" | "done" | "error">("idle");
   const {
     status,
     analysis,
     report,
     windowStart,
     windowEnd,
+    analyzedAt,
     hasNewContent,
     errorMessage,
     isLoading,
@@ -80,6 +84,7 @@ function RadarViewInner({ active }: { active: boolean }) {
   };
   const rangeStart = formatDate(windowStart);
   const rangeEnd = formatDate(windowEnd);
+  const lastUpdated = formatDateTime(analyzedAt);
 
   // Listen for analysis-complete events once.
   useEffect(() => {
@@ -101,12 +106,28 @@ function RadarViewInner({ active }: { active: boolean }) {
   const hasLegacy = analysis !== null && (analysis.topics?.length ?? 0) > 0;
   const hasFindings = hasReport || hasLegacy;
 
+  const handleExportReport = async () => {
+    if (!hasReport || isExportingReport) return;
+    setIsExportingReport(true);
+    setExportStatus("idle");
+    try {
+      await exportCurrentRadarReport();
+      setExportStatus("done");
+      setTimeout(() => setExportStatus("idle"), 2500);
+    } catch (e) {
+      console.error("Failed to export radar report:", e);
+      setExportStatus("error");
+    } finally {
+      setIsExportingReport(false);
+    }
+  };
+
   return (
     <div className="overflow-y-auto" style={{ height: "calc(100vh - 44px)", color: "var(--color-text-primary)" }}>
 
       {/* Header */}
       <div className="px-5 pt-5 pb-3">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between gap-3 mb-1">
           <h2
             style={{
               fontSize: 22,
@@ -118,7 +139,36 @@ function RadarViewInner({ active }: { active: boolean }) {
           >
             {t("radar.title")}
           </h2>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 shrink-0">
+            {hasFindings && lastUpdated && (
+              <span
+                className="text-[11px] whitespace-nowrap"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                {t("radar.lastGenerated")} {lastUpdated}
+              </span>
+            )}
+            {hasReport && (
+              <button
+                onClick={handleExportReport}
+                disabled={isExportingReport}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium
+                           disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                style={{ color: ACCENT, backgroundColor: `${ACCENT}0D`, border: `1px solid ${ACCENT}24` }}
+                title={t("radar.exportTitle")}
+              >
+                {isExportingReport ? (
+                  <Loader2 size={15} strokeWidth={2.5} className="animate-spin" />
+                ) : (
+                  <Download size={15} strokeWidth={2.5} />
+                )}
+                {exportStatus === "done"
+                  ? t("radar.exportedBtn")
+                  : exportStatus === "error"
+                    ? t("radar.exportFailedBtn")
+                    : t("radar.exportBtn")}
+              </button>
+            )}
             <button
               onClick={() => triggerAnalysis()}
               disabled={isAnalyzing || !hasNewContent}
@@ -249,6 +299,18 @@ function RadarViewInner({ active }: { active: boolean }) {
       </div>
     </div>
   );
+}
+
+function formatDateTime(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hour = String(d.getHours()).padStart(2, "0");
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day} ${hour}:${minute}`;
 }
 
 function WikiLintSectionLazy() {

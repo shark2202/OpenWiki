@@ -15,6 +15,7 @@ interface RadarState {
   contentCount: number;
   windowStart: string | null;
   windowEnd: string | null;
+  analyzedAt: string | null;
   hasNewContent: boolean;
   errorMessage: string | null;
   isLoading: boolean;
@@ -31,6 +32,7 @@ export const useRadarStore = create<RadarState>((set, get) => ({
   contentCount: 0,
   windowStart: null,
   windowEnd: null,
+  analyzedAt: null,
   hasNewContent: false,
   errorMessage: null,
   isLoading: true,
@@ -72,6 +74,7 @@ export const useRadarStore = create<RadarState>((set, get) => ({
         contentCount: result.insight?.content_count ?? 0,
         windowStart: result.insight?.window_start ?? null,
         windowEnd: result.insight?.window_end ?? null,
+        analyzedAt: result.insight?.analyzed_at ?? null,
         hasNewContent: result.has_new_content,
         errorMessage,
         isLoading: false,

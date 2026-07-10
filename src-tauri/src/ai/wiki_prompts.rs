@@ -251,7 +251,7 @@ pub fn compile_execute_system_prompt(locale: &str) -> String {
 - Return 3-5 tags — no more, no less
 - Each tag MUST contain a concrete noun (person, company, product, method, technical term). No pure category words.
 - Format: "Concrete noun + core angle", 2-6 words each, proper nouns in original form
-- Good tags: ["Musk first-principles rockets", "Stripe developer experience flywheel", "RAG retrieval augmented generation", "Bridgewater all-weather hedge"]
+- Tags must reuse concrete nouns that appear in the provided content or the existing page. Never introduce new names, companies, products, or claims.
 - BAD tags (NEVER use these or similar generic terms): ["startup", "product", "AI", "agent", "investment", "technology", "workflow", "automation"] — too generic, no distinguishing noun, they flatten the knowledge graph
 - When updating an existing page: preserve useful existing tags as a baseline, only add or replace tags when the new content clearly shifts the page's focus. Do NOT wipe all tags and regenerate from scratch.
 
@@ -279,7 +279,7 @@ pub fn compile_execute_system_prompt(locale: &str) -> String {
 - 返回 3-5 个标签，不多也不少
 - 每个标签必须包含具体名词（人名、公司名、产品名、方法名、术语）。禁止纯类别词。
 - 格式：「具体名词+核心观点」，每个 4-12 字，专有名词保留原文
-- 好的标签：["Musk第一性原理造火箭", "Stripe的开发者体验飞轮", "RAG检索增强生成", "桥水全天候策略对冲"]
+- 标签必须复用输入内容或已有页面里出现的具体名词。不要引入原文没有的人名、公司名、产品名、术语或观点。
 - 差的标签（绝对禁止使用，也禁止类似的泛词）：["创业", "产品", "AI", "agent", "投资", "技术", "工作流", "自动化"] —— 太泛，没有区分度，会让知识图谱纠缠在一起
 - 更新已有页面时：保留有用的旧标签作为基础，只有新内容明显改变页面主题时才增加或替换标签。不要清空所有标签从头生成。
 

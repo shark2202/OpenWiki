@@ -60,6 +60,7 @@
     "apiKey": "API Key",
     "apiKeyDesc": "Stored securely on your device",
     "apiKeyPlaceholder": "Enter your API Key",
+    "apiKeyStoredPlaceholder": "Saved. Enter a new API Key to replace it",
     "baseUrl": "Base URL",
     "baseUrlOllamaHint": "Ollama's default address is filled in — just set the model name",
     "baseUrlLmStudioHint": "LM Studio's default port is filled in — start the Server in LM Studio and enter the loaded model's name",

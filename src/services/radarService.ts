@@ -166,3 +166,7 @@ export async function getAttentionInsights(): Promise<RadarStatus> {
 export async function triggerAttentionAnalysis(): Promise<void> {
   return invoke("trigger_attention_analysis");
 }
+
+export async function exportCurrentRadarReport(): Promise<string> {
+  return invoke<string>("export_current_radar_report");
+}

@@ -5,7 +5,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager, State};
 
 /// The application data directory name for storing captured images.
@@ -13,6 +13,7 @@ const APP_DATA_DIR: &str = "com.openwiki.app";
 const CAPTURES_SUBDIR: &str = "captures";
 const THUMBNAILS_SUBDIR: &str = "thumbnails";
 const THUMBNAIL_WIDTH: u32 = 200;
+const MIN_SUMMARY_CHARS: usize = 50;
 
 pub struct AppState {
     pub db: Arc<Database>,
@@ -20,6 +21,10 @@ pub struct AppState {
     pub pending_capture: Arc<Mutex<Option<serde_json::Value>>>,
     /// Temporarily suppresses macOS Reopen from pulling the main window forward.
     pub suppress_reopen_until: Arc<Mutex<Option<Instant>>>,
+}
+
+fn summary_char_count(text: &str) -> usize {
+    text.trim().chars().count()
 }
 
 #[derive(Debug, Deserialize)]
@@ -1059,6 +1064,13 @@ fn find_existing_content(db: &Arc<Database>) -> Option<CapturedContent> {
         .and_then(|v| v.into_iter().next())
 }
 
+fn suppress_reopen_temporarily(app: &tauri::AppHandle, duration: Duration) {
+    let suppress_arc = app.state::<AppState>().suppress_reopen_until.clone();
+    if let Ok(mut guard) = suppress_arc.lock() {
+        *guard = Some(Instant::now() + duration);
+    };
+}
+
 /// Called by the floating bubble when user confirms saving the captured content.
 /// Receives the same JSON data that was originally sent as `capture:pending`.
 #[tauri::command]
@@ -1074,6 +1086,7 @@ pub fn confirm_capture(
 ) -> Result<CapturedContent, String> {
     // NOTE: Do NOT close the bubble window here.
     // The frontend shows a green checkmark animation for 1.5s before closing itself.
+    suppress_reopen_temporarily(&app, Duration::from_secs(5));
 
     let event = CaptureEvent {
         content_type,
@@ -1166,6 +1179,8 @@ pub fn get_pending_capture(
 /// Cleans up temporary image file if one was created.
 #[tauri::command]
 pub fn dismiss_capture(app: tauri::AppHandle, image_path: Option<String>) -> Result<(), String> {
+    suppress_reopen_temporarily(&app, Duration::from_secs(5));
+
     // Hide bubble window from Rust side (backup)
     hide_bubble_window(&app);
 
@@ -1453,13 +1468,14 @@ pub fn spawn_summary_task(
     content_id: String,
     text: String,
 ) {
-    // At least 50 characters to be worth summarizing — very short text
-    // causes AI to summarize the prompt itself instead of the content
-    if text.trim().len() < 50 {
+    // At least 50 real characters to be worth summarizing. `str::len()`
+    // counts bytes, so short Chinese chat messages can otherwise slip through.
+    let char_count = summary_char_count(&text);
+    if char_count < MIN_SUMMARY_CHARS {
         log::info!(
             "[SUMMARY] skip {} — text too short ({} chars)",
             content_id,
-            text.trim().len()
+            char_count
         );
         return;
     }
@@ -1539,11 +1555,12 @@ pub fn spawn_summary_task(
                 "Read the following content and return JSON with four fields:\n\
                  1. \"tags\": 2-3 specific tags. Each tag MUST contain concrete nouns from the text (names of people, companies, products, methods, technical terms, etc.).\n\
                     Format: \"Concrete noun + core point\", so the reader instantly knows what the content is about.\n\
-                    Good tags: \"Musk first-principles rockets\", \"Stripe developer experience flywheel\", \"RAG retrieval-augmented generation\", \"Bridgewater all-weather hedge\"\n\
                     Bad tags: \"startup mindset\", \"product design\", \"AI apps\", \"investment methods\" (no concrete nouns, too generic)\n\
+                    Never introduce names, companies, products, or claims that do not appear in the content.\n\
                     Each tag 2-6 words in English (keep proper nouns in original form)\n\
                  2. \"summary\": Plain-English explanation of what this content is about (English, under 40 words).\n\
                     Like a one-line pitch a friend would send when sharing an article, so the reader knows whether to click.\n\
+                    Do not add facts, examples, companies, or context that are not present in the content.\n\
                     Avoid formal or academic language — write like you're talking to a friend.\n\
                  3. \"digest\": Core takeaways from the content (English, 80-120 words).\n\
                     Like a smart friend telling you the key points after reading it for you.\n\
@@ -1551,8 +1568,9 @@ pub fn spawn_summary_task(
                     Don't use phrases like \"the article\" or \"the author\" — speak about the content directly.\n\
                  4. \"category\": The category (notebook) this content belongs to. {}\n\
                     Category names must be broad and stable (1-3 words), like notebook titles: \"AI Tools\", \"Trading\", \"Health\". Never invent narrow one-off categories.\n\
+                 If the content is just a short conversation, status update, or does not contain a clear standalone idea, return {{\"tags\":[],\"summary\":\"\",\"digest\":\"\",\"category\":\"\"}}.\n\
                  Regardless of the source language, write all fields in English (keep proper nouns in original form). Return JSON only.\n\
-                 Example: {{\"tags\":[\"Dalio all-weather hedge\",\"Shannon rebalancing arbitrage\"],\"summary\":\"How to buy the dip when markets crash — the key is keeping enough cash on hand\",\"digest\":\"The core tension in investing is wanting high returns without losing money. Dalio's all-weather strategy uses four buckets (stocks, long bonds, commodities, inflation-protected bonds) to diversify risk, surviving any economic regime. Key data: max drawdown over 30 years was only 3.9%, vs over 50% for pure stock portfolios. But the strategy sacrifices upside, averaging 9% annually. Works well for people who don't want to stress and accept moderate returns.\",\"category\":\"Trading\"}}\n\n{}",
+                 \n\n{}",
                 category_instruction,
                 content_for_ai
             )
@@ -1561,11 +1579,12 @@ pub fn spawn_summary_task(
                 "通读以下全文，返回JSON格式，包含四个字段：\n\
                  1. \"tags\": 2-3个具体标签，必须包含文中的具体名词（人名、公司名、产品名、方法名、术语等）。\n\
                     标签格式：\"具体名词+核心观点\"，让人一看就知道这篇讲了什么。\n\
-                    好的标签：\"Musk第一性原理造火箭\"、\"Stripe的开发者体验飞轮\"、\"RAG检索增强生成\"、\"桥水全天候策略对冲\"\n\
                     差的标签：\"创业思维\"、\"产品设计\"、\"AI应用\"、\"投资方法\"（没有具体名词，太泛）\n\
+                    不要引入原文没有出现的人名、公司名、产品名、术语或观点。\n\
                     每个标签4-12个字，用中文简体（专有名词保留原文）\n\
                  2. \"summary\": 用大白话说这篇内容讲了什么（中文简体，不超过80字）。\n\
                     像朋友转发文章时附的一句话，让人一看就知道要不要点开。\n\
+                    不要补充原文没有的信息、例子、公司名或背景。\n\
                     不要用书面语、不要用\"探讨\"\"阐述\"\"倡导\"这类词，就正常说话。\n\
                  3. \"digest\": 这篇内容的核心要点总结（中文简体，150-200字）。\n\
                     像一个聪明的朋友帮你读完后告诉你重点。\n\
@@ -1573,8 +1592,9 @@ pub fn spawn_summary_task(
                     不要用\"本文\"\"作者\"这种书面词，直接说内容本身。\n\
                  4. \"category\": 这条内容归属的类目（像笔记本的名字）。{}\n\
                     类目名要宽泛、稳定，2-6个字，例如\"AI 工具\"\"交易投资\"\"健康\"，不要发明只用一次的细碎类目。\n\
+                 如果内容只是短对话、状态更新，或者没有明确独立观点，返回 {{\"tags\":[],\"summary\":\"\",\"digest\":\"\",\"category\":\"\"}}。\n\
                  无论原文是什么语言，都必须用中文简体（专有名词保留原文）。只返回JSON。\n\
-                 示例：{{\"tags\":[\"Dalio全天候策略对冲\",\"Shannon再平衡套利\"],\"summary\":\"教你怎么在股市暴跌时抄底，关键是平时得留够现金\",\"digest\":\"投资的核心矛盾是想要高收益又怕亏钱。Dalio的全天候策略用四个桶（股票、长期债、商品、通胀保护债）来分散风险，不管经济好坏都能活着。关键数据：过去30年回撤最大只有3.9%，而纯股票组合最大回撤超过50%。但这个策略牺牲了上涨空间，年化只有9%左右。适合不想操心、愿意接受中等回报的人。\",\"category\":\"交易投资\"}}\n\n{}",
+                 \n\n{}",
                 category_instruction,
                 content_for_ai
             )
@@ -2052,12 +2072,23 @@ pub async fn test_ai_connection(
     model: String,
     api_key: String,
     base_url: Option<String>,
+    state: State<'_, AppState>,
 ) -> Result<String, String> {
     let base = base_url.unwrap_or_default();
     let p = crate::ai::attention_analyzer::AnalysisProvider::from_str_with_base(&provider, &base);
+    let key = if crate::secure_store::is_secret_placeholder(&api_key) {
+        let repo = crate::storage::repository::Repository::new(state.db.clone());
+        repo.get_setting(&format!("ai_api_key_{}", provider))
+            .map_err(|e| e.to_string())?
+            .or_else(|| repo.get_setting("ai_api_key").ok().flatten())
+            .unwrap_or_default()
+    } else {
+        api_key
+    };
+
     crate::ai::attention_analyzer::call_analysis_api(
         &p,
-        &api_key,
+        &key,
         &model,
         "",
         "Reply with this exact json object and nothing else: {\"status\":\"ok\"}",
@@ -2070,6 +2101,19 @@ pub async fn test_ai_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn summary_char_count_uses_real_characters_not_bytes() {
+        let short_chinese = "这次可以了。还有一个人提交了 PR，你看到没？";
+        assert!(short_chinese.len() >= MIN_SUMMARY_CHARS);
+        assert!(summary_char_count(short_chinese) < MIN_SUMMARY_CHARS);
+    }
+
+    #[test]
+    fn summary_char_count_allows_substantive_chinese_text() {
+        let text = "这是一段足够长的中文内容，用来描述一个完整观点：产品在处理短对话时不应该强行生成摘要，否则模型容易根据提示词里的示例乱补背景。";
+        assert!(summary_char_count(text) >= MIN_SUMMARY_CHARS);
+    }
 
     #[test]
     fn detects_cid_garbled_pdf_text() {

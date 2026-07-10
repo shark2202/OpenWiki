@@ -39,6 +39,8 @@ import {
   MODELS_BY_PROVIDER,
   PROVIDER_LABELS,
   DEFAULT_BASE_URLS,
+  SECRET_SETTING_PRESENT,
+  isStoredSecretPlaceholder,
   type AIProvider,
   type ThemeMode,
   type BubblePosition,
@@ -126,6 +128,10 @@ export function SettingsView() {
   // Custom is separate because users sometimes put one behind an auth proxy.
   const isLocalNoAuth = provider === "ollama" || provider === "lmstudio";
   const showsBaseUrl = isLocalNoAuth || provider === "custom";
+  const hasStoredApiKey = isStoredSecretPlaceholder(apiKey);
+  const visibleApiKey = hasStoredApiKey ? "" : apiKey;
+  const apiKeyInputValue = draftApiKey ?? visibleApiKey;
+  const effectiveApiKey = draftApiKey ?? (hasStoredApiKey ? SECRET_SETTING_PRESENT : apiKey);
   // MCP connection state per target
   type McpTargetId = "claude" | "openclaw";
   interface McpTargetState {
@@ -760,13 +766,13 @@ export function SettingsView() {
             <div className="flex gap-2">
               <input
                 type={showApiKey ? "text" : "password"}
-                value={draftApiKey ?? apiKey}
+                value={apiKeyInputValue}
                 onChange={(e) => {
                   setDraftApiKey(e.target.value);
                   setApiKeySaved(false);
                   setTestStatus("idle");
                 }}
-                placeholder={t("ai.apiKeyPlaceholder")}
+                placeholder={hasStoredApiKey ? t("ai.apiKeyStoredPlaceholder") : t("ai.apiKeyPlaceholder")}
                 className="flex-1 px-3 py-2 text-sm rounded-lg bg-white/50 dark:bg-white/[0.04] border border-gray-200/50 dark:border-white/[0.08] text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-orange-400/50"
               />
               <button
@@ -784,13 +790,13 @@ export function SettingsView() {
               {!isLocalNoAuth && (
               <button
                 onClick={() => {
-                  const key = draftApiKey ?? apiKey;
+                  const key = draftApiKey ?? visibleApiKey;
                   setApiKey(key);
                   setDraftApiKey(null);
                   setApiKeySaved(true);
                   setTimeout(() => setApiKeySaved(false), 2000);
                 }}
-                disabled={draftApiKey === null || draftApiKey === apiKey}
+                disabled={draftApiKey === null || draftApiKey === visibleApiKey}
                 className="px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors
                   disabled:opacity-30 disabled:cursor-default
                   bg-orange-500/10 dark:bg-orange-500/15 border-orange-300/60 dark:border-orange-500/30 text-orange-700 dark:text-orange-400 hover:bg-orange-500/20 dark:hover:bg-orange-500/25"
@@ -800,10 +806,10 @@ export function SettingsView() {
               )}
               <button
                 onClick={async () => {
-                  const key = draftApiKey ?? apiKey;
+                  const key = effectiveApiKey;
                   if (!key && !isLocalNoAuth && provider !== "custom") return;
                   // Save first if draft exists
-                  if (draftApiKey !== null && draftApiKey !== apiKey) {
+                  if (draftApiKey !== null && draftApiKey !== visibleApiKey) {
                     setApiKey(draftApiKey);
                     setDraftApiKey(null);
                   }
@@ -820,7 +826,7 @@ export function SettingsView() {
                     setTestMessage(typeof e === "string" ? e : String(e));
                   }
                 }}
-                disabled={(!(draftApiKey ?? apiKey) && !isLocalNoAuth && provider !== "custom") || testStatus === "testing"}
+                disabled={(!effectiveApiKey && !isLocalNoAuth && provider !== "custom") || testStatus === "testing"}
                 className="px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors
                   disabled:opacity-30 disabled:cursor-default
                   bg-white/50 dark:bg-white/[0.04] border-gray-200/50 dark:border-white/[0.08] text-gray-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/[0.08]"

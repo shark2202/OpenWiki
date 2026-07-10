@@ -477,6 +477,14 @@ fn make_window_transparent(win: &tauri::WebviewWindow) {
     log::info!("Window transparency applied synchronously");
 }
 
+#[cfg(target_os = "macos")]
+fn suppress_reopen_temporarily(app: &AppHandle, duration: Duration) {
+    let suppress_arc = app.state::<AppState>().suppress_reopen_until.clone();
+    if let Ok(mut guard) = suppress_arc.lock() {
+        *guard = Some(Instant::now() + duration);
+    };
+}
+
 /// Show the bubble window without stealing focus from the current app.
 /// Strategy: record frontmost app before showing, then reactivate it after.
 #[cfg(target_os = "macos")]
@@ -579,14 +587,9 @@ fn show_bubble_window(app: &AppHandle) {
 
     let is_circle = bubble_style == "circle";
     // Circle mode: 64px height (48px circle + 16px padding for bounce animation).
-    // On Windows, transparent WebView windows can still show the native
-    // rectangular window/shadow bounds, so keep the collapsed circle window
-    // physically tight and only expand it from the frontend when memo UI opens.
-    let circle_win_w: f64 = if cfg!(target_os = "windows") {
-        64.0
-    } else {
-        320.0
-    };
+    // Keep the collapsed circle window physically tight so transparent bounds
+    // do not intercept clicks behind the visible 48px bubble.
+    let circle_win_w: f64 = 64.0;
     let win_w: f64 = if is_circle { circle_win_w } else { 340.0 };
     let win_h: f64 = if is_circle { 64.0 } else { 72.0 };
 
@@ -676,6 +679,8 @@ fn show_bubble_window(app: &AppHandle) {
 
             #[cfg(target_os = "macos")]
             {
+                suppress_reopen_temporarily(app, Duration::from_secs(5));
+
                 if is_circle {
                     // Circle mode: apply transparency BEFORE showing window
                     make_window_transparent(&win);

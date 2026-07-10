@@ -1,8 +1,8 @@
 use crate::commands::capture::AppState;
-use crate::export::markdown;
+use crate::export::{markdown, report};
 use crate::storage::models::CapturedContent;
 use crate::storage::repository::Repository;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 /// Get the default export directory (~/Downloads/OpenWiki导出/).
@@ -16,6 +16,30 @@ fn resolve_export_dir(repo: &Repository) -> PathBuf {
         Ok(Some(dir)) if !dir.is_empty() => PathBuf::from(dir),
         _ => default_export_dir(),
     }
+}
+
+fn open_path(path: &Path, label: &str) -> Result<(), String> {
+    open::that_detached(path).map_err(|e| format!("Failed to open {}: {}", label, e))
+}
+
+#[cfg(target_os = "macos")]
+fn reveal_path(path: &Path, label: &str) -> Result<(), String> {
+    std::process::Command::new("open")
+        .arg("-R")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to reveal {}: {}", label, e))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn reveal_path(path: &Path, label: &str) -> Result<(), String> {
+    let target = if path.is_file() {
+        path.parent().unwrap_or(path)
+    } else {
+        path
+    };
+    open_path(target, label)
 }
 
 #[tauri::command]
@@ -87,11 +111,7 @@ pub async fn export_all_single(state: State<'_, AppState>) -> Result<String, Str
     let (path, _count) =
         markdown::export_all_single_file(&repo, &export_dir).map_err(|e| e.to_string())?;
 
-    // Reveal the file in Finder
-    let _ = std::process::Command::new("open")
-        .arg("-R")
-        .arg(&path)
-        .spawn();
+    let _ = reveal_path(&path, "exported file");
 
     Ok(path.to_string_lossy().to_string())
 }
@@ -126,11 +146,21 @@ pub async fn export_range_single(
     let (path, _count) = markdown::export_range_single_file(&start, &end, &repo, &export_dir)
         .map_err(|e| e.to_string())?;
 
-    // Reveal the file in Finder
-    let _ = std::process::Command::new("open")
-        .arg("-R")
-        .arg(&path)
-        .spawn();
+    let _ = reveal_path(&path, "exported file");
+
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Export the latest completed radar insight report into a single Markdown file.
+/// Returns the file path so frontend can reveal it in Finder.
+#[tauri::command]
+pub async fn export_current_radar_report(state: State<'_, AppState>) -> Result<String, String> {
+    let repo = Repository::new(state.db.clone());
+    let export_dir = resolve_export_dir(&repo);
+
+    let path = report::export_current_radar_report(&repo, &export_dir).map_err(|e| e.to_string())?;
+
+    let _ = reveal_path(&path, "exported report");
 
     Ok(path.to_string_lossy().to_string())
 }
@@ -157,10 +187,7 @@ pub async fn open_export_dir(state: State<'_, AppState>) -> Result<(), String> {
     // Ensure directory exists before opening
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    std::process::Command::new("open")
-        .arg(dir.to_string_lossy().to_string())
-        .spawn()
-        .map_err(|e| format!("Failed to open directory: {}", e))?;
+    open_path(&dir, "export directory")?;
 
     Ok(())
 }
@@ -170,25 +197,22 @@ pub async fn open_data_folder() -> Result<(), String> {
     let data_dir = dirs::data_dir()
         .unwrap_or_default()
         .join("com.openwiki.app");
+    std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
 
-    // Use "open -R" to reveal in Finder, targeting the db file.
+    // On macOS reveal the db file in Finder, targeting a file inside the
+    // directory because ".app" suffixes can be treated as bundles.
     // macOS treats ".app" directories as application bundles,
     // so "open com.openwiki.app/" fails. Revealing a file inside works.
     let target = data_dir.join("openwiki.db");
     let reveal_target = if target.exists() { target } else { data_dir };
 
-    std::process::Command::new("open")
-        .arg("-R")
-        .arg(reveal_target.to_string_lossy().to_string())
-        .spawn()
-        .map_err(|e| format!("Failed to open data folder: {}", e))?;
+    reveal_path(&reveal_target, "data folder")?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_storage_info(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let repo = Repository::new(state.db.clone());
     let conn = state.db.conn.lock().map_err(|e| e.to_string())?;
 
     // Count non-deleted items

@@ -8,11 +8,10 @@ import { useTranslation } from "react-i18next";
 const DEFAULT_COUNTDOWN = 5;
 const CIRCLE_SIZE = 48;
 const CIRCLE_WIN_H = 64; // Window height for circle mode (48px circle + 16px bounce padding)
-const CIRCLE_WIN_W_WINDOWS = 64;
+const CIRCLE_WIN_W = 64;
 const CAPSULE_W = 320;
 const EXPANDED_H = 140; // Height when expanded with preview + input
-const IS_WINDOWS = typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent);
-const COLLAPSED_CIRCLE_W = IS_WINDOWS ? CIRCLE_WIN_W_WINDOWS : CAPSULE_W;
+const COLLAPSED_CIRCLE_W = CIRCLE_WIN_W;
 
 interface PendingCapture {
   content_type: string;
@@ -66,7 +65,6 @@ export default function BubbleView() {
   const pausedCountdownRef = useRef<number | null>(null);
 
   const getCircleExpandLeftDelta = useCallback(() => {
-    if (!IS_WINDOWS) return 0;
     const widthDiff = CAPSULE_W - COLLAPSED_CIRCLE_W;
     if (bubblePosition.includes("right")) return -widthDiff;
     if (bubblePosition.includes("left")) return 0;

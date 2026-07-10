@@ -1,7 +1,7 @@
 {
   "name": "openwiki",
   "private": false,
-  "version": "0.3.17",
+  "version": "0.3.20",
   "description": "Desktop AI knowledge management tool for macOS and Windows — capture clipboard, build personal wiki, get AI insights",
   "license": "MIT",
   "repository": {
@@ -34,7 +34,7 @@
     "react-force-graph-2d": "^1.29.1",
     "react-i18next": "^17.0.2",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7",
+    "react-router-dom": "^7.18.1",
     "remark-gfm": "^4.0.1",
     "zustand": "^5"
   },

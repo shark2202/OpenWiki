@@ -5,6 +5,7 @@ mod commands;
 mod export;
 pub mod locale;
 mod scheduler;
+mod secure_store;
 mod storage;
 mod update;
 
@@ -265,6 +266,7 @@ pub fn run() {
             commands::datahub::export_all_single,
             commands::datahub::export_all_single_quiet,
             commands::datahub::export_range_single,
+            commands::datahub::export_current_radar_report,
             commands::datahub::open_data_folder,
             commands::attention::get_attention_insights,
             commands::attention::trigger_attention_analysis,
@@ -317,8 +319,14 @@ pub fn run() {
             // We only respond if the main window is actually hidden (user closed it),
             // not when it's just behind other windows.
             if let tauri::RunEvent::Reopen { .. } = event {
-                // Skip if within suppress window (bubble just closed)
-                if !is_reopen_suppressed(app) {
+                let reopen_suppressed = is_reopen_suppressed(app);
+                let main_hidden = app
+                    .get_webview_window("main")
+                    .and_then(|win| win.is_visible().ok())
+                    .map(|visible| !visible)
+                    .unwrap_or(true);
+
+                if should_show_main_on_reopen(main_hidden, reopen_suppressed) {
                     show_main_window(app, None);
                 }
             }
@@ -585,7 +593,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 show_main_window(app, None);
             }
             "report" => {
-                show_main_window(app, Some("report"));
+                show_main_window(app, Some("digest"));
             }
             "quit" => {
                 app.exit(0);

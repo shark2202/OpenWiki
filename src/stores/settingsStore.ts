@@ -144,6 +144,8 @@ export const DEFAULT_BASE_URLS: Partial<Record<AIProvider, string>> = {
 
 const VALID_PROVIDERS: AIProvider[] = ["anthropic", "openai", "openrouter", "dashscope", "google", "minimax", "deepseek", "ollama", "lmstudio", "custom"];
 const providerModelSettingKey = (provider: AIProvider) => `ai_model_${provider}`;
+export const SECRET_SETTING_PRESENT = "__openwiki_secret_present__";
+export const isStoredSecretPlaceholder = (value: string) => value === SECRET_SETTING_PRESENT;
 
 export type CaptureMode = "auto" | "confirm";
 export type BubbleStyle = "circle" | "bar";
@@ -332,22 +334,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       if (model) providerModels[provider] = model;
       const customBaseUrl = settings.ai_custom_base_url || DEFAULT_BASE_URLS[provider] || "";
 
-      // Load per-provider API key
+      // Load per-provider API key. Secret values are masked by the backend; the
+      // real key is only decrypted inside Rust when an AI request needs it.
       const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || "";
-
-      // One-time migration: if legacy ai_api_key exists but NO provider-specific keys exist yet,
-      // migrate it to the current active provider only
-      let apiKey = providerKey;
-      if (!providerKey && settings.ai_api_key) {
-        const anyProviderKeyExists = VALID_PROVIDERS.some(
-          (p) => !!settings[`ai_api_key_${p}` as keyof typeof settings]
-        );
-        if (!anyProviderKeyExists) {
-          // First time: migrate legacy key to this provider
-          apiKey = settings.ai_api_key;
-          updateSetting(`ai_api_key_${provider}`, settings.ai_api_key).catch(() => {});
-        }
-      }
+      const apiKey = providerKey || settings.ai_api_key || "";
 
       const theme = (["light", "dark", "system"].includes(settings.theme)
         ? settings.theme
@@ -435,7 +425,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     // Load the API key for the new provider
     try {
       const settings = await getSettings();
-      const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || "";
+      const providerKey = settings[`ai_api_key_${provider}` as keyof typeof settings] || settings.ai_api_key || "";
       const savedProviderModel = settings[providerModelSettingKey(provider)];
       const nextModel = providerModels[provider] || savedProviderModel || firstModel;
       const savedBaseUrl = settings.ai_custom_base_url || defaultBaseUrl;
